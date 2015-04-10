@@ -3,5 +3,6 @@
 
 /*required by usbc driver*/
 #define CONF_BOARD_USB_PORT
+#define CONF_BOARD_SD_MMC_HSMCI
 
 #endif

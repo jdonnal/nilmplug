@@ -12,7 +12,7 @@
 #include "types.h"
 #include "readline.h"
 #include "monitor.h"
-#include "i2c_rtc.h"
+#include "rtc.h"
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -39,20 +39,31 @@ mon_test(int argc, char **argv){
 
 int
 mon_set_rtc(int argc, char **argv){
-  if(argc!=2){
-    print("needs unix timestamp");
+  if(argc!=8){
+    print("wrong number of args to set time\n");
     return -1;
   }
-  uint32_t val = strtol(argv[1],NULL,10);
-  i2c_rtc_set_time(val);
+  uint8_t yr = atoi(argv[1]);
+  uint8_t mo = atoi(argv[2]);
+  uint8_t dt = atoi(argv[3]);
+  uint8_t dw = atoi(argv[4]);
+  uint8_t hr = atoi(argv[5]);
+  uint8_t mn = atoi(argv[6]);
+  uint8_t sc = atoi(argv[7]);
+
+  if(i2c_rtc_set_time(sc,mn,hr,dw,dt,mo,yr)!=0)
+    print("error setting RTC\n");
   return 0;
 }
 
 int
 mon_get_rtc(int argc, char **argv){
-  uint32_t val = i2c_rtc_get_time();
+  char buf [30];
+  uint32_t val;
+  //  val = i2c_rtc_get_time();
   print("reading RTC");
-  udi_cdc_write_buf(&val,sizeof(val));
+  sprintf(buf,"%lu\n",val);
+  udi_cdc_write_buf(&buf,strlen(buf));
   return 0;
 }
 

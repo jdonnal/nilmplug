@@ -2,17 +2,24 @@ SRC  = $(wildcard src/*.c)
 INC  = inc
 
 # Subfolders to compile and include from asf/sam/drivers
-SAM_DRIVERS = pio pmc rstc wdt dacc adc udp matrix usart tc twi
+SAM_DRIVERS = pio pmc rstc wdt dacc adc udp matrix usart tc twi hsmci
 SRC += $(wildcard $(SAM_DRIVERS:%=asf/sam/drivers/%/*.c))
 INC += $(SAM_DRIVERS:%=asf/sam/drivers/%)
 
 # Subfolders to compile and include from asf/common/services
 COMMON_SERVICES  = clock gpio sleepmgr ioport fifo delay
 COMMON_SERVICES += usb usb/udc usb/class/cdc usb/class/cdc/device
+COMMON_SERVICES += storage/ctrl_access
 SRC += $(wildcard $(COMMON_SERVICES:%=asf/common/services/%/sam4s/*.c))
 SRC += $(wildcard $(COMMON_SERVICES:%=asf/common/services/%/sam/*.c))
 SRC += $(wildcard $(COMMON_SERVICES:%=asf/common/services/%/*.c))
 INC += $(COMMON_SERVICES:%=asf/common/services/%)
+
+# Subfolders to compile and include from asf/common/components
+COMMON_COMPONENTS = memory/sd_mmc
+SRC += $(wildcard $(COMMON_COMPONENTS:%=asf/common/components/%/*.c))
+INC += $(COMMON_COMPONENTS:%=asf/common/components/%)
+
 
 # Subfolders to compile and include from asf/sam/utils
 SRC += asf/sam/utils/syscalls/gcc/syscalls.c
@@ -27,6 +34,16 @@ INC += asf/sam/utils/cmsis/sam4s/include
 SRC += $(wildcard asf/common/utils/interrupt/*.c)
 SRC += $(wildcard asf/common/utils/stdio/*.c)
 INC += asf/common/utils
+
+# FAT Library
+SRC += asf/thirdparty/fatfs/fatfs-port-r0.09/diskio.c
+SRC += asf/thirdparty/fatfs/fatfs-port-r0.09/sam/fattime_rtc.c
+SRC += asf/thirdparty/fatfs/fatfs-r0.09/src/ff.c
+SRC += asf/thirdparty/fatfs/fatfs-r0.09/src/option/ccsbcs.c
+INC += asf/thirdparty/fatfs/fatfs-port-r0.09/sam
+INC += asf/thirdparty/fatfs/fatfs-r0.09/src 
+
+
 
 # All other ASF header paths
 INC += asf/common/boards

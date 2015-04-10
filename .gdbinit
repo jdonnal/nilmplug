@@ -5,4 +5,6 @@ attach 1
 mon flash_erase_all
 file bin/flash.elf
 load bin/flash.elf
+#layout src
+
 #b iv_adc.c:153

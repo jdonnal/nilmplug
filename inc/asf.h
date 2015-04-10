@@ -22,6 +22,22 @@
 #include <twi.h>
 #include <delay.h>
 
+// From module: High Speed Multimedia Card Interface
+#include <hsmci.h>
+//From module: SD/MMC Memory Control Access - Enable
+#include <sd_mmc_mem.h>
+// From module: SD/MMC stack on Multimedia Card interface
+#include <sd_mmc.h>
+// From module: Supported ports of FatFS
+#include <diskio.h>
+// From module: Memory Control Access Interface
+#include <ctrl_access.h>
+// From module: FatFS file system
+#include <diskio.h>
+#include <ff.h>
+#include <ffconf.h>
+#include <integer.h>
+
 // From module: USB CDC Protocol
 #include <usb_protocol_cdc.h>
 
