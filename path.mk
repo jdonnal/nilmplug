@@ -2,12 +2,12 @@ SRC  = $(wildcard src/*.c)
 INC  = inc
 
 # Subfolders to compile and include from asf/sam/drivers
-SAM_DRIVERS = pio pmc rstc wdt dacc adc udp matrix usart tc twi hsmci
+SAM_DRIVERS = pio pmc rstc wdt dacc adc udp matrix usart tc twi hsmci uart
 SRC += $(wildcard $(SAM_DRIVERS:%=asf/sam/drivers/%/*.c))
 INC += $(SAM_DRIVERS:%=asf/sam/drivers/%)
 
 # Subfolders to compile and include from asf/common/services
-COMMON_SERVICES  = clock gpio sleepmgr ioport fifo delay
+COMMON_SERVICES  = clock gpio sleepmgr ioport fifo delay serial
 COMMON_SERVICES += usb usb/udc usb/class/cdc usb/class/cdc/device
 COMMON_SERVICES += storage/ctrl_access
 SRC += $(wildcard $(COMMON_SERVICES:%=asf/common/services/%/sam4s/*.c))

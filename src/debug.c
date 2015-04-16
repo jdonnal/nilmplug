@@ -14,7 +14,9 @@ void print(const char *str) {
 }
 
 void dbgputc(void *stream, char data){
-  __asm__ volatile ("mov r0, $0x05; mov r1, %0; bkpt $0xAB" : : "r" (data) : "r0", "r1");  
+  if(data=='\r')
+    data='!';
+  print(&data);
 }
 #else
   void print(const char *str){

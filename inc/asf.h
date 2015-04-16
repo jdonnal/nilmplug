@@ -21,6 +21,7 @@
 #include <fifo.h>
 #include <twi.h>
 #include <delay.h>
+#include <serial.h>
 
 // From module: High Speed Multimedia Card Interface
 #include <hsmci.h>
