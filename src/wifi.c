@@ -5,10 +5,11 @@
 
 void write_buffer(char* str);
 
-int wifi_send_cmd(const char* cmd, char* resp, int maxlen, int timeout);
+int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout);
 
 void wifi_init(void){
-  char buf [300];
+  uint32_t BUF_SIZE = 100;
+  char buf [BUF_SIZE];
   //set up the UART
   static usart_serial_options_t usart_options = {
     .baudrate = WIFI_UART_BAUDRATE,
@@ -42,29 +43,31 @@ void wifi_init(void){
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
   printf("AT+RST:");
-  wifi_send_cmd("AT+RST",buf,300,1);
+  wifi_send_cmd("AT+RST",buf,BUF_SIZE,1);
   printf("\t%s\n",buf);
   delay_ms(500);
   //set to mode *both*
   printf("AT+CWMODE=1:");
-  wifi_send_cmd("AT+CWMODE=1",buf,300,1);
+  wifi_send_cmd("AT+CWMODE=1",buf,BUF_SIZE,1);
   printf("\t%s\n",buf);
   delay_ms(500);
-  //list available access points
-  printf("AT+CWLAP");
-  wifi_send_cmd("AT+CWLAP",buf,300,2);
+  //try to join MIT
+  printf("AT+CWJAP=\"MIT\"");
+  wifi_send_cmd("AT+CWJAP=\"MIT\",\"\"",buf,BUF_SIZE,5);
+  printf("\t%s\n",buf);
+  //see if we have an IP address
+  printf("AT+CIFSR");
+  wifi_send_cmd("AT+CIFSR",buf,BUF_SIZE,2);
   printf("\t%s\n",buf);
 };
 
-uint8_t rx_buf [300];
-uint8_t rx_buf_idx = 0;
-int rx_buf_maxlen = 0;
+uint8_t rx_buf [RESP_BUF_SIZE];
+uint32_t rx_buf_idx = 0;
 bool rx_wait = false;
 
-int wifi_send_cmd(const char* cmd, char* resp, int maxlen, int timeout){
-  rx_buf_maxlen = 300; 
+int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
   rx_buf_idx = 0;
-  uint8_t rx_start, rx_end;
+  uint32_t rx_start, rx_end;
   //enable RX interrupts
   usart_enable_interrupt(WIFI_UART, US_IER_RXRDY);
   NVIC_EnableIRQ(WIFI_UART_IRQ);
@@ -87,10 +90,10 @@ int wifi_send_cmd(const char* cmd, char* resp, int maxlen, int timeout){
   rx_buf[rx_buf_idx]=0x0;
   //remove any ECHO
   if(strstr((char*)rx_buf,cmd)!=(char*)rx_buf){
-    rx_start = 0;
-  } else {
-    rx_start = strlen(cmd);
-  }
+    printf("bad echo\n");
+    return 0;
+  } 
+  rx_start = strlen(cmd);
   //remove leading whitespace
   while(rx_buf[rx_start]=='\r'|| rx_buf[rx_start]=='\n')
     rx_start++;
@@ -122,7 +125,7 @@ ISR(UART0_Handler)
 {
   uint8_t tmp;
   usart_serial_getchar(WIFI_UART,&tmp);
-  if(rx_buf_idx>=rx_buf_maxlen){
+  if(rx_buf_idx>=RESP_BUF_SIZE){
     printf("error!\n");
     return; //ERROR!!!!!
   }
