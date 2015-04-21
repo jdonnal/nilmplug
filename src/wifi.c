@@ -10,6 +10,7 @@ int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout);
 void wifi_init(void){
   uint32_t BUF_SIZE = 100;
   char buf [BUF_SIZE];
+  char tx_buf [BUF_SIZE];
   //set up the UART
   static usart_serial_options_t usart_options = {
     .baudrate = WIFI_UART_BAUDRATE,
@@ -46,14 +47,18 @@ void wifi_init(void){
   wifi_send_cmd("AT+RST",buf,BUF_SIZE,1);
   printf("\t%s\n",buf);
   delay_ms(500);
-  //set to mode *both*
+  //see if we are using WiFi
+  if(wemo_config.standalone)
+    return; 
+
+  //set to mode STA
   printf("AT+CWMODE=1:");
   wifi_send_cmd("AT+CWMODE=1",buf,BUF_SIZE,1);
   printf("\t%s\n",buf);
   delay_ms(500);
-  //try to join MIT
-  printf("AT+CWJAP=\"MIT\"");
-  wifi_send_cmd("AT+CWJAP=\"MIT\",\"\"",buf,BUF_SIZE,5);
+  //try to join the specified network  
+  sprintf(tx_buf,"AT+CWJA=\"%s\",\"%s\"",config.wifi_ssid,config.wifi_pwd);
+  wifi_send_cmd(tx_buf,buf,BUF_SIZE,5);
   printf("\t%s\n",buf);
   //see if we have an IP address
   printf("AT+CIFSR");

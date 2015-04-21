@@ -5,6 +5,7 @@
 #include "rtc.h"
 #include "wifi.h"
 #include "monitor.h"
+#include "wemo_fs.h"
 #include <stdio.h>
 
 //! Pointer to the external low level write function.
@@ -14,11 +15,6 @@ extern int (*ptr_put)(void volatile*, char);
 void io_init(void);
 
 int main(void) {
-  Ctrl_status status;
-  FRESULT res;
-  FATFS fs;
-  FIL file_object;
-  char test_file_name[] = "0:sd_mmc_test.txt";
 
   ptr_put = (int (*)(void volatile*,char))&dbgputc;
   setbuf(stdout, NULL);
@@ -31,49 +27,8 @@ int main(void) {
   io_init();
   usb_init();
   i2c_rtc_init();
-  //  sd_mmc_init();
+  wemo_fs_init(); //file system (config and logging)
   wifi_init();
-  //install the SD Card
-  while(1);
-  do {
-    status = sd_mmc_test_unit_ready(0);
-    if (CTRL_FAIL == status) {
-      printf("Card install FAIL\n");
-      printf("Please unplug and re-plug the card.\n");
-      while (CTRL_NO_PRESENT != sd_mmc_check(0)) {
-      }
-    }
-  } while (CTRL_GOOD != status);
-  //mount the FS
-  printf("Mount disk (f_mount)...\r\n");
-  memset(&fs, 0, sizeof(FATFS));
-  res = f_mount(LUN_ID_SD_MMC_0_MEM, &fs);
-  if (FR_INVALID_DRIVE == res) {
-    printf("[FAIL] res %d\r\n",res);
-  }
-  printf("[OK]\r\n");
-
-  printf("Create a file (f_open)...\r\n");
-  test_file_name[0] = LUN_ID_SD_MMC_0_MEM + '0';
-  res = f_open(&file_object,
-	       (char const *)test_file_name,
-	       FA_CREATE_ALWAYS | FA_WRITE);
-  if (res != FR_OK) {
-    printf("[FAIL] res %d\r\n", res);
-    goto main_end_of_test;
-  }
-  printf("[OK]\r\n");
-  
-  printf("Write to test file (f_puts)...\r\n");
-  if (0 == f_puts("Test SD/MMC stack\n", &file_object)) {
-    f_close(&file_object);
-    printf("[FAIL]\r\n");
-    goto main_end_of_test;
-  }
-  printf("[OK]\r\n");
-  f_close(&file_object);
-  printf("Test is successful.\n\r");
- main_end_of_test:
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");
