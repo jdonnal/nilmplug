@@ -2,13 +2,18 @@
 #include <stdio.h>
 #include "string.h"
 #include "wifi.h"
+#include "wemo_fs.h" //for wemo_config
 
-void write_buffer(char* str);
-
+//** Globals for wifi_send_cmd **
+uint8_t rx_buf [RESP_BUF_SIZE];
+uint32_t rx_buf_idx = 0;
+bool rx_wait = false;
 int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout);
 
 void wifi_init(void){
   uint32_t BUF_SIZE = 100;
+  int num_tries = 0;
+  uint32_t idx; //tmp variable for string indexing
   char buf [BUF_SIZE];
   char tx_buf [BUF_SIZE];
   //set up the UART
@@ -43,32 +48,41 @@ void wifi_init(void){
   NVIC_EnableIRQ(TC0_IRQn);
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
-  printf("AT+RST:");
   wifi_send_cmd("AT+RST",buf,BUF_SIZE,1);
-  printf("\t%s\n",buf);
   delay_ms(500);
   //see if we are using WiFi
   if(wemo_config.standalone)
     return; 
-
   //set to mode STA
-  printf("AT+CWMODE=1:");
   wifi_send_cmd("AT+CWMODE=1",buf,BUF_SIZE,1);
-  printf("\t%s\n",buf);
   delay_ms(500);
-  //try to join the specified network  
-  sprintf(tx_buf,"AT+CWJA=\"%s\",\"%s\"",config.wifi_ssid,config.wifi_pwd);
-  wifi_send_cmd(tx_buf,buf,BUF_SIZE,5);
-  printf("\t%s\n",buf);
-  //see if we have an IP address
-  printf("AT+CIFSR");
-  wifi_send_cmd("AT+CIFSR",buf,BUF_SIZE,2);
-  printf("\t%s\n",buf);
-};
+  while(num_tries<MAX_TRIES){
+    //try to join the specified network  
+    sprintf(tx_buf,"AT+CWJA=\"%s\",\"%s\"",wemo_config.wifi_ssid,wemo_config.wifi_pwd);
+    wifi_send_cmd(tx_buf,buf,BUF_SIZE,5);
+    //see if we have an IP address
+    wifi_send_cmd("AT+CIFSR",buf,BUF_SIZE,2);
+    //check if we were successful
+    if(strstr(&buf[strlen(buf)-2],"OK")==&buf[strlen(buf)-2]){
+    //success! save the IP address to our config
+      memset(wemo_config.wemo_ip,0,30);
+      idx = (uint32_t)strstr(buf,"\r\n")-(uint32_t)buf;
+      memcpy(wemo_config.wemo_ip,buf,idx);
+      //log the event
+      sprintf(tx_buf,"Joined [%s] with IP [%s]",wemo_config.wifi_ssid,wemo_config.wemo_ip);
+      wemo_log(tx_buf);
+      return;
+    } else {
+      printf("Error!\n");
+      num_tries++;
+    }
+  }
+  //log the failure
+  sprintf(tx_buf,"Could not join [%s]",wemo_config.wifi_ssid);
+  wemo_log(tx_buf);
+  return;
+}
 
-uint8_t rx_buf [RESP_BUF_SIZE];
-uint32_t rx_buf_idx = 0;
-bool rx_wait = false;
 
 int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
   rx_buf_idx = 0;

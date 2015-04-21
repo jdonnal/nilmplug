@@ -12,6 +12,7 @@ int i2c_rtc_init(void);
 //set RTC with unix timestamp
 int i2c_rtc_set_time(uint8_t sc, uint8_t mn, uint8_t hr, uint8_t dw, 
 		     uint8_t dt, uint8_t mo, uint8_t yr);
+void rtc_get_time_str(const char* buf); //timestamp as string YYYY-MM-DD HH:MM:SS
 /////emulate ASF RTC routines
 void rtc_get_time(Rtc *p_rtc, uint32_t* ul_hour, uint32_t* ul_minute, uint32_t* ul_second);
 void rtc_get_date(Rtc *p_rtc, uint32_t* ul_year, uint32_t* ul_month, uint32_t* ul_day, uint32_t* ul_week);

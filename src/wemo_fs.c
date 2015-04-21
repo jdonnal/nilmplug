@@ -1,16 +1,10 @@
 #include <asf.h>
 #include "wemo_fs.h"
+#include "rtc.h"
+
 #include <string.h>
 
-struct config {
-  char wifi_ssid[20];     //the wireless network to connect to
-  char wifi_pwd[30];      //the network password (may be blank)
-  uint8_t standalone;     //TRUE: don't try to connect to a network
-  char mgr_url[30];       //URL of managment node (www.wattsworth.net)
-  char wattsworth_id[30]; //ID wattsworth owner (nilm9F59)
-  char wattsworth_ip[30]; //cached IP address of wattsworth owner
-} wemo_config;
-
+config wemo_config;
 
 FATFS fs;
 FIL log_file;
@@ -43,11 +37,10 @@ uint8_t wemo_fs_init(void){
   wemo_read_config();
   
   //open the log file
-  memcpy(file_name,LOG_FILE,strlen(CONFIG_FILE));
-  file_name[0] = LUN_ID_SD_MMC_0_MEM + '0';
-  res = f_open(&log_file,
-	       (char const *)file_name,
+  res = f_open(&log_file, LOG_FILE,
 	       FA_OPEN_ALWAYS | FA_WRITE);
+  /* Move to end of the file to append data */
+  res = f_lseek(&log_file, f_size(&log_file));
   if (res != FR_OK) {
     printf("[FAIL] res %d\r\n", res);
     return false;
@@ -117,8 +110,15 @@ void wemo_read_config(void){
 
 
 void wemo_log(const char* content){
-  //TODO
-  printf(content);
+  char *msg_buf,*ts_buf;
+  UINT len;
+  msg_buf = (char*)malloc(strlen(content)+30);
+  ts_buf = (char*)malloc(30);
+  rtc_get_time_str(ts_buf);
+  sprintf(msg_buf,"[%s]: %s\n",ts_buf,content);
+  f_write(&log_file,msg_buf,strlen(msg_buf),&len);
+  //always sync log entries
+  f_sync(&log_file);
 }
 
 
