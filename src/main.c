@@ -6,6 +6,8 @@
 #include "wifi.h"
 #include "monitor.h"
 #include "wemo_fs.h"
+#include "rgb_led.h"
+
 #include <stdio.h>
 
 //! Pointer to the external low level write function.
@@ -16,6 +18,8 @@ void io_init(void);
 
 int main(void) {
 
+  char buf[50];
+
   ptr_put = (int (*)(void volatile*,char))&dbgputc;
   setbuf(stdout, NULL);
 
@@ -25,10 +29,14 @@ int main(void) {
   wdt_disable(WDT);
   //initialize peripherals
   io_init();
+  //  rgb_led_init();
+  //rgb_led_set(242,222,68);
   usb_init();
   i2c_rtc_init();
+  rtc_get_time_str(buf);
   wemo_fs_init(); //file system (config and logging)
   wifi_init();
+  rgb_led_set(0,125,30);
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");

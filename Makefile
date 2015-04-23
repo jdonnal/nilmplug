@@ -9,7 +9,7 @@ LD_SCRIPT = asf/sam/utils/linker_scripts/sam4s/sam4s4/gcc/%.ld
 
 # Compiler and linker flags. Here be dragons.
 CFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m4
-CFLAGS += -g -O0 $(INC:%=-I%) -std=c99 -Wall
+CFLAGS += -g -O0 $(INC:%=-I%) -std=gnu99 -Wall #change to gnu99 for inline assembly
 CFLAGS += -DARM_MATH_CM4 -D'__SAM4S4B__' -D'BOARD=USER_BOARD'
 LFLAGS  = $(CFLAGS) -T$(@:bin/%.elf=$(LD_SCRIPT))
 LFLAGS += -Wl,--entry=Reset_Handler -Wl,--gc-sections

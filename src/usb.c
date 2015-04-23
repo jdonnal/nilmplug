@@ -4,7 +4,8 @@
 #include "debug.h"
 
 static volatile bool b_cdc_enable = false;
-#define USB_DBG
+#undef USB_DBG
+
 void usb_init(void){
 #ifdef USB_DBG
   print("starting usb framework\n");

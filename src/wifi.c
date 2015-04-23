@@ -70,6 +70,7 @@ void wifi_init(void){
       memcpy(wemo_config.wemo_ip,buf,idx);
       //log the event
       sprintf(tx_buf,"Joined [%s] with IP [%s]",wemo_config.wifi_ssid,wemo_config.wemo_ip);
+      printf("%s\n",tx_buf);
       wemo_log(tx_buf);
       return;
     } else {

@@ -13,8 +13,6 @@ uint8_t wemo_fs_init(void){
   Ctrl_status status;
   FRESULT res;
 
-  char file_name[30]; //buffer to hold file names
-
   //initialize the HSCMI controller
   sd_mmc_init();
   //install the SD Card
@@ -73,6 +71,7 @@ void wemo_read_config(void){
   memcpy(wemo_config.wifi_ssid,&buf[strlen(config_tag)],
 	 strlen(buf)-strlen(config_tag)-1);
   // WiFi Password
+  f_gets(buf,30,&file);
   config_tag = "wifi_pwd: ";
   if(strstr(buf,config_tag)!=buf)
     goto config_error;
