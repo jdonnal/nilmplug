@@ -118,6 +118,8 @@ void wemo_log(const char* content){
   f_write(&log_file,msg_buf,strlen(msg_buf),&len);
   //always sync log entries
   f_sync(&log_file);
+  //clean up memory
+  free(ts_buf);
 }
 
 

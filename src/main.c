@@ -14,7 +14,11 @@
 extern int (*ptr_put)(void volatile*, char);
 
 //initialize IO pins
+#define RELAY_PIN PIO_PA13_IDX
+
 void io_init(void);
+void relay_on(void);
+void relay_off(void);
 
 int main(void) {
 
@@ -29,14 +33,22 @@ int main(void) {
   wdt_disable(WDT);
   //initialize peripherals
   io_init();
-  //  rgb_led_init();
-  //rgb_led_set(242,222,68);
+  rgb_led_init();
+  rgb_led_set(242,222,68);
   usb_init();
   i2c_rtc_init();
-  rtc_get_time_str(buf);
   wemo_fs_init(); //file system (config and logging)
-  wifi_init();
+  if(wifi_init()!=0){
+    rgb_led_set(255,0,0);
+    while(1);
+  }
   rgb_led_set(0,125,30);
+  //now we are ready!
+  //start a server and any incoming data toggles the relay
+  wifi_server_start();
+  relay_on();
+  delay_s(3);
+  relay_off();
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");
@@ -46,16 +58,21 @@ int main(void) {
 }
 
 
+void relay_on(void){
+  gpio_set_pin_high(RELAY_PIN);
+}
+
+void relay_off(void){
+  gpio_set_pin_low(RELAY_PIN);
+}
+
+void relay_toggle(void){
+  gpio_toggle_pin(RELAY_PIN);
+}
 void io_init(void){
-  //LED's
+  //Relay
   pmc_enable_periph_clk(ID_PIOA);
-  gpio_configure_pin(PIO_PA17_IDX, PIO_OUTPUT_1);
-  gpio_configure_pin(PIO_PA18_IDX, PIO_OUTPUT_1);
-  gpio_configure_pin(PIO_PA0_IDX, PIO_OUTPUT_1);
-  gpio_configure_pin(PIO_PB14_IDX, PIO_OUTPUT_1);
-  gpio_set_pin_high(PIO_PA0_IDX);
-  gpio_set_pin_low(PIO_PA17_IDX);
-  gpio_set_pin_low(PIO_PA18_IDX);
+  gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
 
   //SD Card pins
   gpio_configure_pin(PIO_PA1_IDX, PIO_OUTPUT_0);

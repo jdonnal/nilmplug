@@ -22,5 +22,8 @@ void dbgputc(void *stream, char data){
   void print(const char *str){
     //noop
   }
+void dbgputc(void *stream, char data){
+  //noop
+}
 #endif
 
