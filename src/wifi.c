@@ -52,7 +52,10 @@ int wifi_init(void){
   NVIC_EnableIRQ(TC0_IRQn);
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
-  wifi_send_cmd("AT+RST",buf,BUF_SIZE,1);
+  if(wifi_send_cmd("AT+RST",buf,BUF_SIZE,1)==0){
+    printf("Error reseting ESP8266\n");
+    return 0;
+  }
   delay_ms(500);
   //clear out old access point info
   //  wifi_send_cmd("AT+CWJAP=\"\",\"\"",buf,BUF_SIZE,4);
@@ -61,12 +64,19 @@ int wifi_init(void){
   if(wemo_config.standalone)
     return 0; 
   //set to mode STA
-  wifi_send_cmd("AT+CWMODE=1",buf,BUF_SIZE,1);
+  if(wifi_send_cmd("AT+CWMODE=1",buf,BUF_SIZE,1)==0){
+    printf("Error setting ESP8266 mode\n");
+    return 0;
+  }
   delay_ms(500);
   while(num_tries<MAX_TRIES){
     //try to join the specified network  
     sprintf(tx_buf,"AT+CWJAP=\"%s\",\"%s\"",wemo_config.wifi_ssid,wemo_config.wifi_pwd);
-    wifi_send_cmd(tx_buf,buf,BUF_SIZE,10);
+    if(wifi_send_cmd(tx_buf,buf,BUF_SIZE,5)==0){
+      printf("no response to CWJAP\n");
+      num_tries++;
+      continue;
+    }
     if(strstr(buf,"ERROR")==buf){
       printf("error %d/%d joining network\n",num_tries,MAX_TRIES);
       num_tries++;
@@ -83,15 +93,11 @@ int wifi_init(void){
     return -1;
   }
   //see if we have an IP address
-  while(1){
-    wifi_send_cmd("AT+CIFSR",buf,BUF_SIZE,2);
-    if(strstr(buf,"busy")==buf){
-      printf("waiting for IP\n");
-      continue;
-    }
-    break;
+  wifi_send_cmd("AT+CIFSR",buf,BUF_SIZE,2);
+  if(strstr(buf,"ERROR")==buf){
+    printf("error getting IP address\n");
+    return 0;
   }
-  //save our IP address
   memset(wemo_config.wemo_ip,0,30);
   idx = (uint32_t)strstr(buf,"\r\n")-(uint32_t)buf;
   memcpy(wemo_config.wemo_ip,buf,idx);
@@ -106,11 +112,8 @@ int wifi_init(void){
 int wifi_server_start(void){
   uint32_t BUF_SIZE = 300;
   char buf [BUF_SIZE];
-
   wifi_send_cmd("AT+CIPMUX=1",buf,BUF_SIZE,2);
-  printf(buf);
   wifi_send_cmd("AT+CIPSERVER=1,1336",buf,BUF_SIZE,2);
-  printf(buf);
   return 0;
 };
 
@@ -141,9 +144,9 @@ int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
   //wait for [timeout] seconds
   while(timeout>0){
     //start the timer
-
     tc_start(TC0, 0);	  
     //when timer expires, return what we have in the buffer
+    rx_wait=true; //reset the wait flag
     while(rx_wait);
     tc_stop(TC0,0);
     timeout--;
@@ -163,6 +166,11 @@ int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
   rx_end = strlen((char*)rx_buf)-1;
   while(rx_buf[rx_end]=='\r'|| rx_buf[rx_end]=='\n')
     rx_end--;
+  //make sure we have a response
+  if(rx_end<=rx_start){
+    printf("no response by timeout\n");
+    return 0;
+  }
   //copy the data to the response buffer
   if((rx_end-rx_start+1)>maxlen){
     memcpy(resp,&rx_buf[rx_start],maxlen-1);

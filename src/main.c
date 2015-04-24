@@ -46,9 +46,6 @@ int main(void) {
   //now we are ready!
   //start a server and any incoming data toggles the relay
   wifi_server_start();
-  relay_on();
-  delay_s(3);
-  relay_off();
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");
