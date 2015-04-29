@@ -27,7 +27,9 @@ struct Command {
 static struct Command commands[] = {
 	{ "hello", "test command", mon_test },
 	{ "set_rtc", "set RTC with unix timestamp", mon_set_rtc},
-	{ "get_rtc", "get RTC as unit timestamp", mon_get_rtc}
+	{ "get_rtc", "get RTC as unit timestamp", mon_get_rtc},
+	{ "relay_on", "turn relay on",mon_relay_on},
+	{ "relay_off", "turn relay off",mon_relay_off}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -67,7 +69,20 @@ mon_get_rtc(int argc, char **argv){
   return 0;
 }
 
+int
+mon_relay_on(int argc, char **argv){
+  gpio_set_pin_high(RELAY_PIN);
+}
 
+int
+mon_relay_off(int argc, char **argv){
+  gpio_set_pin_low(RELAY_PIN);
+}
+
+int
+mon_relay_toggle(int argc, char **argv){
+  gpio_toggle_pin(RELAY_PIN);
+}
 
 /***** Kernel monitor command interpreter *****/
 

@@ -13,8 +13,6 @@
 //! Pointer to the external low level write function.
 extern int (*ptr_put)(void volatile*, char);
 
-//initialize IO pins
-#define RELAY_PIN PIO_PA13_IDX
 
 void io_init(void);
 void relay_on(void);
@@ -38,14 +36,16 @@ int main(void) {
   usb_init();
   i2c_rtc_init();
   wemo_fs_init(); //file system (config and logging)
+  server_init(); //setup data structures for the server (relay control)
   if(wifi_init()!=0){
     rgb_led_set(255,0,0);
     while(1);
   }
-  rgb_led_set(0,125,30);
+
   //now we are ready!
   //start a server and any incoming data toggles the relay
   wifi_server_start();
+  rgb_led_set(0,125,30);
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");
@@ -55,17 +55,6 @@ int main(void) {
 }
 
 
-void relay_on(void){
-  gpio_set_pin_high(RELAY_PIN);
-}
-
-void relay_off(void){
-  gpio_set_pin_low(RELAY_PIN);
-}
-
-void relay_toggle(void){
-  gpio_toggle_pin(RELAY_PIN);
-}
 void io_init(void){
   //Relay
   pmc_enable_periph_clk(ID_PIOA);
