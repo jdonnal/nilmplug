@@ -2,17 +2,17 @@
 #include <stdio.h>
 #include "string.h"
 #include "wifi.h"
+#include "server.h"
 #include "wemo_fs.h" //for wemo_config
 
 //** Globals for wifi_send_cmd **
 uint8_t rx_buf [RESP_BUF_SIZE];
 uint32_t rx_buf_idx = 0;
 bool rx_wait = false;
-uint8_t server_buf [SERVER_BUF_SIZE];
+//local index into server buffer
 uint32_t server_buf_idx = 0;
 
 int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout);
-void wifi_process_data(void);
 
 int wifi_init(void){
   uint32_t BUF_SIZE = 300;
@@ -212,10 +212,27 @@ ISR(UART0_Handler)
     }
     server_buf[server_buf_idx++]=(char)tmp;
     //if we have a full line, send it to the server process
-    if(server_buf_idx>=2){
-      if(server_buf[server_buf_idx-3]=='\r'&&
-	 server_buf[server_buf_idx-2]=='\n')
-	wifi_process_data();
+    if(server_buf_idx>=6){
+      //check for link 
+      if(strstr(server_buf,"Link\r\n")==server_buf){
+	server_link();
+	server_buf_idx=0;
+	return;
+      }
+      //check for unlink
+      if(strstr(server_buf,"Unlink\r\n")==server_buf){
+	server_unlink();
+	server_buf_idx=0;
+	return;
+      }
+      //check for data
+      if(strstr(&server_buf[server_buf_idx-4],"OK\r\n")==
+	 &server_buf[server_buf_idx-4]){
+	server_process_data();
+	server_buf_idx=0;
+	return;
+      }
     }
+    //otherwise keep collecting data
   }
 }

@@ -109,17 +109,21 @@ void wemo_read_config(void){
 
 
 void wemo_log(const char* content){
-  char *msg_buf,*ts_buf;
+  char msg_buf[200];
+  char ts_buf[30];
   UINT len;
-  msg_buf = (char*)malloc(strlen(content)+30);
-  ts_buf = (char*)malloc(30);
+  //  msg_buf = (char*)malloc(strlen(content)+30);
+  memset(msg_buf,0x0,strlen(content)+30);
+  //  ts_buf = (char*)malloc(30);
+  memset(ts_buf,0x0,30);
   rtc_get_time_str(ts_buf);
   sprintf(msg_buf,"[%s]: %s\n",ts_buf,content);
   f_write(&log_file,msg_buf,strlen(msg_buf),&len);
   //always sync log entries
   f_sync(&log_file);
   //clean up memory
-  free(ts_buf);
+  //free(msg_buf);
+  //free(ts_buf);
 }
 
 
