@@ -3,6 +3,20 @@
 
 #define SERVER_BUF_SIZE 1000
 
+typedef struct power_pkt_struct {
+  uint8_t valid;          //struct valid flag
+  int32_t vrms;           //RMS voltage
+  int32_t irms;           //RMS current
+  int32_t watts;          //watts
+  int32_t pavg;           //Average power (30s window)
+  int32_t freq;           //Line frequency
+  int32_t pf;             //Power factor
+  int32_t kwh;            //kWh since turn on
+} power_pkt;
+
+
+extern power_pkt wemo_power;
+
 char* server_buf;
 int server_buf_len;
 

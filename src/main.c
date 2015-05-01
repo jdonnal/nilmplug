@@ -36,7 +36,9 @@ int main(void) {
   usb_init();
   i2c_rtc_init();
   wemo_fs_init(); //file system (config and logging)
-  server_init(); //setup data structures for the server (relay control)
+  server_init(); //***testing only****
+  while(1);
+  //  server_init(); //setup data structures for the server (relay control)
   if(wifi_init()!=0){
     rgb_led_set(255,0,0);
     while(1);

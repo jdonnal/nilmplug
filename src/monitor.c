@@ -13,6 +13,7 @@
 #include "readline.h"
 #include "monitor.h"
 #include "rtc.h"
+#include "server.h"
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -82,6 +83,21 @@ mon_relay_off(int argc, char **argv){
 int
 mon_relay_toggle(int argc, char **argv){
   gpio_toggle_pin(RELAY_PIN);
+}
+
+/***** Core commands ****/
+void core_log_power_data(power_pkt *pkt){
+  float vrms, irms, watts, pavg, pf, freq, kwh;
+  vrms = pkt->vrms*0.001;
+  irms = pkt->irms*7.77e-6;
+  watts = pkt->watts*0.005;
+  pavg = pkt->pavg*0.005;
+  pf = pkt->pf*1e-3;
+  freq = pkt->freq*1e-3;
+  kwh = pkt->kwh*1e-3;
+
+  printf("%.2fV %.2fI %fW %.2fW %.2fpf %.2fHz %.2fkWh\n",
+	 vrms,irms,watts,pavg,pf,freq,kwh);
 }
 
 /***** Kernel monitor command interpreter *****/
