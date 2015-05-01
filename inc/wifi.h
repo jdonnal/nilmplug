@@ -8,5 +8,6 @@
 int wifi_init(void);
 
 int wifi_server_start(void);
+int wifi_transmit(char *url, int port, char *data);
 
 #endif

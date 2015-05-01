@@ -108,6 +108,13 @@ int wifi_init(void){
   return 0;
 }
 
+int wifi_transmit(char *url, int port, char *data){
+  char buf[100];
+  sprintf(buf,"AT+CIPSTART=4, \"TCP\",\"%s\",%d",
+	  url,port);
+  wifi_send_cmd(buf,2);
+  wifi_send_data(4,data);
+}
 
 int wifi_server_start(void){
   uint32_t BUF_SIZE = 300;
@@ -124,6 +131,13 @@ void wifi_process_data(void){
 
   memset(server_buf,0x0,SERVER_BUF_SIZE);
   server_buf_idx=0;
+}
+
+int wifi_send_data(int ch, const char* data){
+  char buf[100];
+  sprintf(buf,"AT+CIPSEND=4,%d",strlen(data));
+  usart_serial_write_packet(WIFI_UART,(uint8_t*)data,strlen(data));
+  
 }
 
 int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
@@ -205,7 +219,18 @@ ISR(UART0_Handler)
       return; //ERROR!!!!!
     }
     rx_buf[rx_buf_idx++]=(char)tmp;
-  } else { //this is unsollicted data
+  } else if(data_tx){
+    //we are transmitting, no need to capture response,
+    //just wait for SEND OK\r\n, use a 9 char circular buffer
+    //****TODO*****
+    if(rx_buf_idx>8){
+      for(i=0;i<8;i++)
+	rx_buf[i]=rx_buf[i+1];
+      rx_buf[8]=tmp;
+    } else
+      rx_buf[rx_buf_idx++]=tmp;
+  }
+  }else { //this is unsollicted data
     if(server_buf_idx>=SERVER_BUF_SIZE){
       printf("error!\n");
       return; //ERROR!!!!

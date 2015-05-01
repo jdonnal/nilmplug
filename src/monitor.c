@@ -88,6 +88,8 @@ mon_relay_toggle(int argc, char **argv){
 /***** Core commands ****/
 void core_log_power_data(power_pkt *pkt){
   float vrms, irms, watts, pavg, pf, freq, kwh;
+  char content [500];
+  char tx_buffer[1000];
   vrms = pkt->vrms*0.001;
   irms = pkt->irms*7.77e-6;
   watts = pkt->watts*0.005;
@@ -98,6 +100,11 @@ void core_log_power_data(power_pkt *pkt){
 
   printf("%.2fV %.2fI %fW %.2fW %.2fpf %.2fHz %.2fkWh\n",
 	 vrms,irms,watts,pavg,pf,freq,kwh);
+  sprintf(content,"vrms=%d&irms=%d&watts=%d&pavg=%d&pf=%d&freq=%d&kwh=%d",
+	  pkt->vrms,pkt->irms,pkt->watts,pkt->pavg,pkt->pf,pkt->freq,pkt->kwh);
+  sprintf(tx_buffer,"POST /plugs/log HTTP/1.0\r\nUser-Agent: WemoPlug\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %d \r\n %s\r\n",
+	  strlen(content),content);
+  wifi_transmit("http://nilm4444.vpn.wattsworth.net",5000,tx_buffer);
 }
 
 /***** Kernel monitor command interpreter *****/
