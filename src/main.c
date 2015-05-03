@@ -20,8 +20,6 @@ void relay_off(void);
 
 int main(void) {
 
-  char buf[50];
-
   ptr_put = (int (*)(void volatile*,char))&dbgputc;
   setbuf(stdout, NULL);
 
@@ -33,18 +31,19 @@ int main(void) {
   io_init();
   rgb_led_init();
   rgb_led_set(242,222,68);
+  cpu_irq_enable();
   usb_init();
   i2c_rtc_init();
   wemo_fs_init(); //file system (config and logging)
-  server_init(); //***testing only****
-  while(1);
-  //  server_init(); //setup data structures for the server (relay control)
+  //****hard code config vals b/c config file got corrupted***
+  memcpy(wemo_config.wifi_ssid,"MIT",strlen("MIT"));
+  server_init(); //setup data structures for the server (relay control)
+
   if(wifi_init()!=0){
     rgb_led_set(255,0,0);
     while(1);
   }
-
-  //now we are ready!
+  server_init(); 
   //start a server and any incoming data toggles the relay
   wifi_server_start();
   rgb_led_set(0,125,30);

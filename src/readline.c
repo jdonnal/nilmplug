@@ -11,10 +11,8 @@ static char buf[BUFLEN];
 char *
 readline(void)
 {
-  int i, c, r;
-  //  char buf[40];
+  int i, c;
   i=0;
-  uint16_t data;
   while(1){
     //check for incoming USB data
     //first check data port

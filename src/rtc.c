@@ -62,7 +62,7 @@ void rtc_get_time_str(char* buf){
   uint32_t ul_hour, ul_minute, ul_second;
   rtc_get_date(NULL,&ul_year,&ul_month,&ul_day,&ul_week);
   rtc_get_time(NULL,&ul_hour,&ul_minute,&ul_second);
-  sprintf(buf,"20%02d-%02d-%02d %02d:%02d:%02d",ul_year,ul_month,ul_day,
+  sprintf(buf,"20%02lu-%02lu-%02lu %02lu:%02lu:%02lu",ul_year,ul_month,ul_day,
 	  ul_hour,ul_minute,ul_second);
   return;
 }

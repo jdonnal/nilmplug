@@ -12,8 +12,7 @@ and pushes out updates from the power meter over TCP
 relay_on: turn the relay on
 relay_off: turn the relay off
 ----Power Meter----------
-Read the wemo power chip every second. Use timer 1 to generate
-interrupts, when interrupt fires, check if data in the power struct
+Read the wemo power chip every second.  check if data in the power struct
 is valid, if so send it //otherwise flush it and start listening to
 the UART. The UART waits for the sync byte 0xAE then reads 29 more
 bytes computes the checksum and parses the data into the power
@@ -42,21 +41,6 @@ void server_init(void){
   sysclk_enable_peripheral_clock(ID_WEMO_UART);
   usart_serial_init(WEMO_UART,&usart_options);
   NVIC_EnableIRQ(WEMO_UART_IRQ);
-
-  // Trigger from timer 1
-  pmc_enable_periph_clk(ID_TC1);
-  tc_init(TC0, 1,                        // channel 1
-	  TC_CMR_TCCLKS_TIMER_CLOCK5     // source clock (CLOCK5 = Slow Clock)
-	  | TC_CMR_CPCTRG                // up mode with automatic reset on RC match
-	  | TC_CMR_WAVE                  // waveform mode
-	  | TC_CMR_ACPA_CLEAR            // RA compare effect: clear
-	  | TC_CMR_ACPC_SET              // RC compare effect: set
-	  );
-  TC0->TC_CHANNEL[1].TC_RA = 0;  // doesn't matter
-  TC0->TC_CHANNEL[1].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
-  NVIC_EnableIRQ(TC1_IRQn);
-  tc_enable_interrupt(TC0, 1, TC_IER_CPCS);
-  tc_start(TC0,1);
 };
 
 void server_process_data(void){
@@ -133,17 +117,10 @@ uint8_t process_packet(uint8_t *buffer){
   return true;
 };
 
-ISR(TC1_Handler)
-{
-  //check if there is a valid data packet
-  if(wemo_power.valid==true){
-    core_log_power_data(&wemo_power);
-  }
+void server_read_power(void){
+  //start listening to the WEMO
   wemo_power.valid=false;
-  //now start listening to the WEMO
   usart_enable_interrupt(WEMO_UART, US_IER_RXRDY);
-  //clear the interrupt so we don't get stuck here
-  tc_get_status(TC0,1);
 }
 
 ISR(UART1_Handler)

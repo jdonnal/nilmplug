@@ -14,6 +14,7 @@
 #include "monitor.h"
 #include "rtc.h"
 #include "server.h"
+#include "wifi.h"
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -61,50 +62,44 @@ mon_set_rtc(int argc, char **argv){
 
 int
 mon_get_rtc(int argc, char **argv){
-  char buf [30];
-  uint32_t val;
+  //char buf [30];
+  //uint32_t val;
   //  val = i2c_rtc_get_time();
-  print("reading RTC");
-  sprintf(buf,"%lu\n",val);
-  udi_cdc_write_buf(&buf,strlen(buf));
+  print("TODO: reading RTC");
+  //sprintf(buf,"%lu\n",val);
+  //udi_cdc_write_buf(&buf,strlen(buf));
   return 0;
 }
 
 int
 mon_relay_on(int argc, char **argv){
   gpio_set_pin_high(RELAY_PIN);
+  return 0;
 }
 
 int
 mon_relay_off(int argc, char **argv){
   gpio_set_pin_low(RELAY_PIN);
+  return 0;
 }
 
 int
 mon_relay_toggle(int argc, char **argv){
   gpio_toggle_pin(RELAY_PIN);
+  return 0;
 }
 
 /***** Core commands ****/
 void core_log_power_data(power_pkt *pkt){
-  float vrms, irms, watts, pavg, pf, freq, kwh;
   char content [500];
-  char tx_buffer[1000];
-  vrms = pkt->vrms*0.001;
-  irms = pkt->irms*7.77e-6;
-  watts = pkt->watts*0.005;
-  pavg = pkt->pavg*0.005;
-  pf = pkt->pf*1e-3;
-  freq = pkt->freq*1e-3;
-  kwh = pkt->kwh*1e-3;
+  char tx_buffer[1100];
 
-  printf("%.2fV %.2fI %fW %.2fW %.2fpf %.2fHz %.2fkWh\n",
-	 vrms,irms,watts,pavg,pf,freq,kwh);
-  sprintf(content,"vrms=%d&irms=%d&watts=%d&pavg=%d&pf=%d&freq=%d&kwh=%d",
+  //  printf("%.2fV %.2fI %fW %.2fW %.2fpf %.2fHz %.2fkWh\n",
+  //	 vrms,irms,watts,pavg,pf,freq,kwh);
+  sprintf(content,"vrms=%li&irms=%li&watts=%li&pavg=%li&pf=%li&freq=%li&kwh=%li",
 	  pkt->vrms,pkt->irms,pkt->watts,pkt->pavg,pkt->pf,pkt->freq,pkt->kwh);
-  sprintf(tx_buffer,"POST /plugs/log HTTP/1.0\r\nUser-Agent: WemoPlug\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %d \r\n %s\r\n",
-	  strlen(content),content);
-  wifi_transmit("http://nilm4444.vpn.wattsworth.net",5000,tx_buffer);
+  sprintf(tx_buffer,"POST /plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*.*\r\nConnection: keep-alive\r\nContent-Type: application-x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s",strlen(content),content);
+  wifi_transmit("18.111.15.238",5000,tx_buffer);
 }
 
 /***** Kernel monitor command interpreter *****/
@@ -152,11 +147,51 @@ runcmd(char *buf)
 	return 0;
 }
 
+/****************
+ * This is the core loop
+ * Uses a tick to schedule operations
+ *****************/
+uint8_t sys_tick=0;
 void monitor(void){
-  char *buf;
+  //setup the system tick
+  //use Timer0 channel 1
+  pmc_enable_periph_clk(ID_TC1);
+  tc_init(TC0, 1,                        // channel 1
+	  TC_CMR_TCCLKS_TIMER_CLOCK5     // source clock (CLOCK5 = Slow Clock)
+	  | TC_CMR_CPCTRG                // up mode with automatic reset on RC match
+	  | TC_CMR_WAVE                  // waveform mode
+	  | TC_CMR_ACPA_CLEAR            // RA compare effect: clear
+	  | TC_CMR_ACPC_SET              // RC compare effect: set
+	  );
+  TC0->TC_CHANNEL[1].TC_RA = 0;  // doesn't matter
+  TC0->TC_CHANNEL[1].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
+  NVIC_EnableIRQ(TC1_IRQn);
+  tc_enable_interrupt(TC0, 1, TC_IER_CPCS);
+  tc_start(TC0,1);
+  uint8_t prev_tick=0;
+  //  char *buf;
   while (1) {
-    buf = readline();
-    if (buf != NULL)
-      runcmd(buf);
+    if(sys_tick!=prev_tick){ 
+      prev_tick=sys_tick; //ticks are slow enough that we don't need mutex
+
+      //check if there is a valid data packet
+      if(wemo_power.valid==true){
+	core_log_power_data(&wemo_power);
+      }
+
+      server_read_power();
+    }
+    // don't worry about reading in commands right now
+    //buf = readline();
+    //if (buf != NULL)
+    //  runcmd(buf);
   }
+}
+
+
+ISR(TC1_Handler)
+{
+  sys_tick++;
+  //clear the interrupt so we don't get stuck here
+  tc_get_status(TC0,1);
 }

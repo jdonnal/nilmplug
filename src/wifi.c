@@ -8,11 +8,16 @@
 //** Globals for wifi_send_cmd **
 uint8_t rx_buf [RESP_BUF_SIZE];
 uint32_t rx_buf_idx = 0;
-bool rx_wait = false;
+int data_tx_status = TX_IDLE;
+
+bool rx_wait = false; //we are waiting for response
+bool data_tx = false; //we are transmitting data
+
 //local index into server buffer
 uint32_t server_buf_idx = 0;
 
 int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout);
+int wifi_send_data(int ch, const char* data);
 
 int wifi_init(void){
   uint32_t BUF_SIZE = 300;
@@ -48,7 +53,8 @@ int wifi_init(void){
 	  );
   TC0->TC_CHANNEL[0].TC_RA = 0;  // doesn't matter
   TC0->TC_CHANNEL[0].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
-  cpu_irq_enable();
+  NVIC_ClearPendingIRQ(TC0_IRQn);
+  NVIC_SetPriority(TC0_IRQn,0);
   NVIC_EnableIRQ(TC0_IRQn);
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
@@ -109,11 +115,36 @@ int wifi_init(void){
 }
 
 int wifi_transmit(char *url, int port, char *data){
+  char cmd[100];
   char buf[100];
-  sprintf(buf,"AT+CIPSTART=4, \"TCP\",\"%s\",%d",
+  //sometimes the port stays open, so check for both
+  //conditions
+  char *success_str = "OK\r\nLinked";
+  char *connected_str = "ALREAY CONNECT";
+  //open a TCP connection on channel 4
+  sprintf(cmd,"AT+CIPSTART=4,\"TCP\",\"%s\",%d",
 	  url,port);
-  wifi_send_cmd(buf,2);
-  wifi_send_data(4,data);
+  wifi_send_cmd(cmd,buf,100,2);
+  //if we are still connected, close and reopen socket
+  if(strstr(buf,connected_str)==buf){
+    wifi_send_cmd("AT+CIPCLOSE=4",buf,100,1);
+    //now try again
+    wifi_send_cmd(cmd,buf,100,2);
+  }
+  //check for successful link
+  if(strstr(buf,success_str)!=buf){
+    printf("error, setting up link\n");
+    return -1;
+  }
+  //send the data
+  if(wifi_send_data(4,data)!=0){
+    printf("error transmitting data: %d",data_tx_status);
+    return -1;
+  }
+  //close the connection
+  //  wifi_send_cmd("AT+CIPCLOSE=4",buf,100,1);
+
+  return 0; //success!
 }
 
 int wifi_server_start(void){
@@ -134,10 +165,37 @@ void wifi_process_data(void){
 }
 
 int wifi_send_data(int ch, const char* data){
-  char buf[100];
-  sprintf(buf,"AT+CIPSEND=4,%d",strlen(data));
+  char cmd[100];
+  int timeout = 2; //wait 2 seconds to transmit the data
+  data_tx = true;
+  sprintf(cmd,"AT+CIPSEND=4,%d\r\n",strlen(data));
+  data_tx_status=TX_PENDING;
+  rx_wait=true;
+  rx_buf_idx = 0;
+  memset(rx_buf,0x0,RESP_BUF_SIZE);
+  memset(server_buf,0x0,SERVER_BUF_SIZE); //to make debugging easier
+  server_buf_idx=0;
+  usart_serial_write_packet(WIFI_UART,(uint8_t*)cmd,strlen(cmd));
   usart_serial_write_packet(WIFI_UART,(uint8_t*)data,strlen(data));
-  
+  //now wait for the data to be sent
+  while(timeout>0){
+    //start the timer
+    tc_start(TC0, 0);	  
+    //when timer expires, return what we have in the buffer
+    rx_wait=true; //reset the wait flag
+    while(rx_wait && data_tx_status!=TX_SUCCESS);
+    tc_stop(TC0,0);
+    if(data_tx_status==TX_SUCCESS){
+      printf("tx success!\n");
+      delay_ms(500); //wait 0.5 sec to discard returned data (hack)
+      data_tx_status=TX_IDLE;
+      rx_wait = false;
+      return 0;
+    }
+    timeout--;
+  }
+  data_tx_status=TX_ERROR;
+  return -1;
 }
 
 int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
@@ -189,7 +247,7 @@ int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
   if((rx_end-rx_start+1)>maxlen){
     memcpy(resp,&rx_buf[rx_start],maxlen-1);
     resp[maxlen-1]=0x0;
-    printf(rx_buf);
+    printf((char*)rx_buf);
     printf("truncated output!\n");
   } else{
     memcpy(resp,&rx_buf[rx_start],rx_end-rx_start+1);
@@ -209,17 +267,17 @@ ISR(TC0_Handler)
 
 ISR(UART0_Handler)
 {
-  uint8_t tmp;
+  uint8_t tmp, i;
   usart_serial_getchar(WIFI_UART,&tmp);
   //check whether this is a command response or 
   //new data from the web (unsollicted response)
-  if(rx_wait){
+  if(rx_wait && data_tx_status!=TX_PENDING){
     if(rx_buf_idx>=RESP_BUF_SIZE){
       printf("error!\n");
       return; //ERROR!!!!!
     }
     rx_buf[rx_buf_idx++]=(char)tmp;
-  } else if(data_tx){
+  } else if(rx_wait && data_tx_status==TX_PENDING){
     //we are transmitting, no need to capture response,
     //just wait for SEND OK\r\n, use a 9 char circular buffer
     //****TODO*****
@@ -227,9 +285,12 @@ ISR(UART0_Handler)
       for(i=0;i<8;i++)
 	rx_buf[i]=rx_buf[i+1];
       rx_buf[8]=tmp;
-    } else
+      if(strstr((char*)rx_buf,"SEND OK\r\n")==(char*)rx_buf){
+	data_tx_status=TX_SUCCESS;
+      }
+    } else{
       rx_buf[rx_buf_idx++]=tmp;
-  }
+    }
   }else { //this is unsollicted data
     if(server_buf_idx>=SERVER_BUF_SIZE){
       printf("error!\n");
