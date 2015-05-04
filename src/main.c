@@ -34,11 +34,11 @@ int main(void) {
   cpu_irq_enable();
   usb_init();
   i2c_rtc_init();
+  char buf[100];
+  rtc_get_time_str(buf);
+  printf(buf); printf("\n");
+  //  i2c_rtc_set_time(1,2,3,4,5,6,7);
   wemo_fs_init(); //file system (config and logging)
-  //****hard code config vals b/c config file got corrupted***
-  memcpy(wemo_config.wifi_ssid,"MIT",strlen("MIT"));
-  server_init(); //setup data structures for the server (relay control)
-
   if(wifi_init()!=0){
     rgb_led_set(255,0,0);
     while(1);

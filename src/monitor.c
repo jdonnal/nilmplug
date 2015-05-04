@@ -98,8 +98,8 @@ void core_log_power_data(power_pkt *pkt){
   //	 vrms,irms,watts,pavg,pf,freq,kwh);
   sprintf(content,"vrms=%li&irms=%li&watts=%li&pavg=%li&pf=%li&freq=%li&kwh=%li",
 	  pkt->vrms,pkt->irms,pkt->watts,pkt->pavg,pkt->pf,pkt->freq,pkt->kwh);
-  sprintf(tx_buffer,"POST /plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*.*\r\nConnection: keep-alive\r\nContent-Type: application-x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s",strlen(content),content);
-  wifi_transmit("18.111.15.238",5000,tx_buffer);
+  sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s",strlen(content),content);
+  wifi_transmit("18.111.15.238",80,tx_buffer);
 }
 
 /***** Kernel monitor command interpreter *****/
