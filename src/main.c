@@ -44,8 +44,6 @@ int main(void) {
     while(1);
   }
   server_init(); 
-  //start a server and any incoming data toggles the relay
-  wifi_server_start();
   rgb_led_set(0,125,30);
   printf("entering monitor\n");
   monitor();

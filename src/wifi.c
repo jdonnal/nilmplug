@@ -11,12 +11,15 @@ uint32_t rx_buf_idx = 0;
 int data_tx_status = TX_IDLE;
 
 bool rx_wait = false; //we are waiting for response
+char rx_complete_str[30]; //expected response of command to ESP8266
+bool rx_complete = false; //flag set by UART int when rx_complete_str matches
 bool data_tx = false; //we are transmitting data
 
 //local index into server buffer
 uint32_t server_buf_idx = 0;
 
-int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout);
+int wifi_send_cmd(const char* cmd, const char* resp_complete, char* resp, 
+		  uint32_t maxlen, int timeout);
 int wifi_send_data(int ch, const char* data);
 
 int wifi_init(void){
@@ -58,7 +61,7 @@ int wifi_init(void){
   NVIC_EnableIRQ(TC0_IRQn);
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
-  if(wifi_send_cmd("AT+RST",buf,BUF_SIZE,1)==0){
+  if(wifi_send_cmd("AT+RST","ready",buf,BUF_SIZE,1)==0){
     printf("Error reseting ESP8266\n");
     return 0;
   }
@@ -70,7 +73,7 @@ int wifi_init(void){
   if(wemo_config.standalone)
     return 0; 
   //set to mode STA
-  if(wifi_send_cmd("AT+CWMODE=1",buf,BUF_SIZE,1)==0){
+  if(wifi_send_cmd("AT+CWMODE=1","no change",buf,BUF_SIZE,1)==0){
     printf("Error setting ESP8266 mode\n");
     return 0;
   }
@@ -78,7 +81,7 @@ int wifi_init(void){
   while(num_tries<MAX_TRIES){
     //try to join the specified network  
     sprintf(tx_buf,"AT+CWJAP=\"%s\",\"%s\"",wemo_config.wifi_ssid,wemo_config.wifi_pwd);
-    if(wifi_send_cmd(tx_buf,buf,BUF_SIZE,5)==0){
+    if(wifi_send_cmd(tx_buf,"OK",buf,BUF_SIZE,5)==0){
       printf("no response to CWJAP\n");
       num_tries++;
       continue;
@@ -99,14 +102,19 @@ int wifi_init(void){
     return -1;
   }
   //see if we have an IP address
-  wifi_send_cmd("AT+CIFSR",buf,BUF_SIZE,2);
+  wifi_send_cmd("AT+CIFSR","OK",buf,BUF_SIZE,2);
   if(strstr(buf,"ERROR")==buf){
     printf("error getting IP address\n");
     return 0;
   }
+  //save the IP to our config
   memset(wemo_config.wemo_ip,0,30);
   idx = (uint32_t)strstr(buf,"\r\n")-(uint32_t)buf;
   memcpy(wemo_config.wemo_ip,buf,idx);
+  //set the mode to multiple connections
+  wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
+  //start a server on port 1336
+  wifi_send_cmd("AT+CIPSERVER=1,1336","OK",buf,BUF_SIZE,2);
   //log the event
   sprintf(tx_buf,"Joined [%s] with IP [%s]",wemo_config.wifi_ssid,wemo_config.wemo_ip);
   printf("%s\n",tx_buf);
@@ -119,17 +127,17 @@ int wifi_transmit(char *url, int port, char *data){
   char buf[100];
   //sometimes the port stays open, so check for both
   //conditions
-  char *success_str = "OK\r\nLinked";
+  char *success_str = "OK";
   char *connected_str = "ALREAY CONNECT";
   //open a TCP connection on channel 4
   sprintf(cmd,"AT+CIPSTART=4,\"TCP\",\"%s\",%d",
 	  url,port);
-  wifi_send_cmd(cmd,buf,100,2);
+  wifi_send_cmd(cmd,"Linked",buf,100,2);
   //if we are still connected, close and reopen socket
   if(strstr(buf,connected_str)==buf){
-    wifi_send_cmd("AT+CIPCLOSE=4",buf,100,1);
+    wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,100,1);
     //now try again
-    wifi_send_cmd(cmd,buf,100,2);
+    wifi_send_cmd(cmd,"Linked",buf,100,2);
   }
   //check for successful link
   if(strstr(buf,success_str)!=buf){
@@ -138,20 +146,21 @@ int wifi_transmit(char *url, int port, char *data){
   }
   //send the data
   if(wifi_send_data(4,data)!=0){
-    printf("error transmitting data: %d",data_tx_status);
+    printf("error transmitting data: %d\n",data_tx_status);
     return -1;
   }
   //close the connection
-  //  wifi_send_cmd("AT+CIPCLOSE=4",buf,100,1);
+  wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,100,1);
 
   return 0; //success!
 }
 
+//****OBSOLETE****
 int wifi_server_start(void){
   uint32_t BUF_SIZE = 300;
   char buf [BUF_SIZE];
-  wifi_send_cmd("AT+CIPMUX=1",buf,BUF_SIZE,2);
-  wifi_send_cmd("AT+CIPSERVER=1,1336",buf,BUF_SIZE,2);
+  wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
+  wifi_send_cmd("AT+CIPSERVER=1,1336","OK",buf,BUF_SIZE,2);
   return 0;
 };
 
@@ -186,7 +195,6 @@ int wifi_send_data(int ch, const char* data){
     while(rx_wait && data_tx_status!=TX_SUCCESS);
     tc_stop(TC0,0);
     if(data_tx_status==TX_SUCCESS){
-      printf("tx success!\n");
       delay_ms(500); //wait 0.5 sec to discard returned data (hack)
       data_tx_status=TX_IDLE;
       rx_wait = false;
@@ -194,21 +202,33 @@ int wifi_send_data(int ch, const char* data){
     }
     timeout--;
   }
+  //an error occured, see if it is due to a module reset
+  if(strstr((char*)rx_buf,"\r\nready\r\n")==(char*)rx_buf){
+    //module reset itself!!! 
+    printf("detected module reset\n");
+  }
   data_tx_status=TX_ERROR;
   return -1;
 }
 
-int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
+int wifi_send_cmd(const char* cmd, const char* resp_complete,
+		  char* resp, uint32_t maxlen, int timeout){
   rx_buf_idx = 0;
   uint32_t rx_start, rx_end;
   //clear out the response buffer
   memset(resp,0x0,maxlen);
   memset(rx_buf,0x0,RESP_BUF_SIZE);
+  //setup the rx_complete buffer so we know when the command is finished
+  memcpy(rx_complete_str,resp_complete,strlen(resp_complete));
+  rx_complete_str[strlen(resp_complete)]='\r';
+  rx_complete_str[strlen(resp_complete)+1]='\n';
+  rx_complete_str[strlen(resp_complete)+2]='\0';
   //enable RX interrupts
   usart_enable_interrupt(WIFI_UART, US_IER_RXRDY);
   NVIC_EnableIRQ(WIFI_UART_IRQ);
   //write the command
   rx_wait=true; //we want this data returned in rx_buf
+  rx_complete =false; //reset the early complete flag
   usart_serial_write_packet(WIFI_UART,(uint8_t*)cmd,strlen(cmd));
   //terminate the command
   usart_serial_putchar(WIFI_UART,'\r');
@@ -221,6 +241,8 @@ int wifi_send_cmd(const char* cmd, char* resp, uint32_t maxlen, int timeout){
     rx_wait=true; //reset the wait flag
     while(rx_wait);
     tc_stop(TC0,0);
+    if(rx_complete) //if the uart interrupt signals rx is complete
+      break;
     timeout--;
   }
   //now null terminate the response
@@ -277,10 +299,19 @@ ISR(UART0_Handler)
       return; //ERROR!!!!!
     }
     rx_buf[rx_buf_idx++]=(char)tmp;
+    //check for completion_str to indicate completion of command
+    //this is just a speed up, we still timeout regardless
+    //of whether we find this string 
+    if(rx_buf_idx>4){
+      if(strstr((char*)rx_buf,rx_complete_str)==
+	 (char*)&rx_buf[rx_buf_idx-strlen(rx_complete_str)]){
+	rx_complete = true; //early completion!
+	rx_wait = false; 
+      }
+    }
   } else if(rx_wait && data_tx_status==TX_PENDING){
     //we are transmitting, no need to capture response,
     //just wait for SEND OK\r\n, use a 9 char circular buffer
-    //****TODO*****
     if(rx_buf_idx>8){
       for(i=0;i<8;i++)
 	rx_buf[i]=rx_buf[i+1];
@@ -300,7 +331,8 @@ ISR(UART0_Handler)
     //if we have a full line, send it to the server process
     if(server_buf_idx>=6){
       //check for link 
-      if(strstr(server_buf,"Link\r\n")==server_buf){
+      if((strstr(server_buf,"Link\r\n")==server_buf) ||
+	 (strstr(server_buf,"Linked\r\n")==server_buf)){
 	server_link();
 	server_buf_idx=0;
 	return;
