@@ -18,6 +18,7 @@
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
+power_pkt wemo_pkt; //buffer of wemo power_samples for transmission
 
 struct Command {
 	const char *name;
@@ -90,24 +91,129 @@ mon_relay_toggle(int argc, char **argv){
 }
 
 /***** Core commands ****/
-void core_log_power_data(power_pkt *pkt){
-  int r;
-  char content [500];
-  char tx_buffer[1100];
-
-  //  printf("%.2fV %.2fI %fW %.2fW %.2fpf %.2fHz %.2fkWh\n",
-  //	 vrms,irms,watts,pavg,pf,freq,kwh);
-  sprintf(content,"vrms=%li&irms=%li&watts=%li&pavg=%li&pf=%li&freq=%li&kwh=%li",
-	  pkt->vrms,pkt->irms,pkt->watts,pkt->pavg,pkt->pf,pkt->freq,pkt->kwh);
+void core_transmit_power_packet(void){
+  int r, i, j;
+  char tx_buffer[1100], content[500];
+  char vrms_str[100], irms_str[100],  watts_str[100], pavg_str[100];
+  char pf_str[100],   freq_str[100],    kwh_str[100];
+  char *bufs[7] = {vrms_str, irms_str, watts_str, pavg_str, pf_str, freq_str, kwh_str};
+  int32_t *srcs[7] = {wemo_pkt.vrms, wemo_pkt.irms, wemo_pkt.pavg, wemo_pkt.watts,
+		    wemo_pkt.pf, wemo_pkt.freq, wemo_pkt.kwh};
+  char *buf; int32_t *src;
+  //now we are filling up the POST request
+  wemo_pkt.status = POWER_PKT_TX_IN_PROG;
+  //print out the data arrays as strings
+  for(j=0;j<7;j++){
+    buf = bufs[j]; src = srcs[j];
+    memset(buf,0x0,100); //clear out the buffers
+    for(i=0;i<PKT_SIZE;i++){
+      sprintf(buf+strlen(buf),"%li",src[i]);
+      if(i<(PKT_SIZE-1))
+	sprintf(buf+strlen(buf),", ");
+    }
+  }
+  //stick them in a json format
+  sprintf(content,"\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]",
+	  wemo_pkt.timestamp,vrms_str,irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
   sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s",strlen(content),content);
+  //send the packet!
   r = wifi_transmit("18.111.15.238",80,tx_buffer);
+  if(r==TX_SUCCESS){
+    wemo_pkt.status = POWER_PKT_EMPTY;
+  } else {
+    wemo_pkt.status = POWER_PKT_TX_FAIL;
+  }
   if(r==TX_ERROR){
     printf("resetting wifi\n");
     wifi_init();
   }
 }
 
+void core_log_power_data(power_sample *sample){
+  static int wemo_pkt_idx = 0;
+  //check for error conditions
+  switch(wemo_pkt.status){
+  case POWER_PKT_EMPTY:
+    if(wemo_pkt_idx!=0){
+      printf("Error, empty packet but nonzero index\n");
+      return;
+    }
+    //set the timestamp for the packet with the first one
+    rtc_get_time_str(wemo_pkt.timestamp);
+    break;
+  case POWER_PKT_TX_IN_PROG:
+    printf("Error, this packet is still being transmitted\n");
+    return;
+  case POWER_PKT_TX_FAIL:
+    printf("Prev TX failed... sorry :(\n");
+  }
+  wemo_pkt.status = POWER_PKT_FILLING;
+  wemo_pkt.vrms[wemo_pkt_idx]  = sample->vrms;
+  wemo_pkt.irms[wemo_pkt_idx]  = sample->irms;
+  wemo_pkt.watts[wemo_pkt_idx] = sample->watts;
+  wemo_pkt.pavg[wemo_pkt_idx]  = sample->pavg;
+  wemo_pkt.freq[wemo_pkt_idx]  = sample->freq;
+  wemo_pkt.pf[wemo_pkt_idx]    = sample->pf;
+  wemo_pkt.kwh[wemo_pkt_idx]   = sample->kwh;
+  wemo_pkt_idx++;
+  if(wemo_pkt_idx==PKT_SIZE){
+    core_transmit_power_packet();
+    wemo_pkt_idx = 0;
+  }
+}
+
 /***** Kernel monitor command interpreter *****/
+
+/****************
+ * This is the core loop
+ * Uses a tick to schedule operations
+ *****************/
+uint8_t sys_tick=0;
+
+void monitor(void){
+  //setup the system tick
+  //use Timer0 channel 1
+  pmc_enable_periph_clk(ID_TC1);
+  tc_init(TC0, 1,                        // channel 1
+	  TC_CMR_TCCLKS_TIMER_CLOCK5     // source clock (CLOCK5 = Slow Clock)
+	  | TC_CMR_CPCTRG                // up mode with automatic reset on RC match
+	  | TC_CMR_WAVE                  // waveform mode
+	  | TC_CMR_ACPA_CLEAR            // RA compare effect: clear
+	  | TC_CMR_ACPC_SET              // RC compare effect: set
+	  );
+  TC0->TC_CHANNEL[1].TC_RA = 0;  // doesn't matter
+  TC0->TC_CHANNEL[1].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
+  NVIC_EnableIRQ(TC1_IRQn);
+  tc_enable_interrupt(TC0, 1, TC_IER_CPCS);
+  tc_start(TC0,1);
+  uint8_t prev_tick=0;
+  //initialize the power packet
+  wemo_pkt.status = POWER_PKT_EMPTY;
+  while (1) {
+    if(sys_tick!=prev_tick){ 
+      prev_tick=sys_tick; //ticks are slow enough that we don't need mutex
+      //check if there is a valid data packet
+      if(wemo_sample.valid==true){
+	core_log_power_data(&wemo_sample);
+      }
+
+      server_read_power();
+    }
+    // don't worry about reading in commands right now
+    //buf = readline();
+    //if (buf != NULL)
+    //  runcmd(buf);
+  }
+}
+
+
+ISR(TC1_Handler)
+{
+  sys_tick++;
+  //clear the interrupt so we don't get stuck here
+  tc_get_status(TC0,1);
+}
+
 
 #define WHITESPACE "\t\r\n "
 #define MAXARGS 16
@@ -150,53 +256,4 @@ runcmd(char *buf)
 	sprintf(p_buf,"Unknown command '%s'\n", argv[0]);
 	print(p_buf);
 	return 0;
-}
-
-/****************
- * This is the core loop
- * Uses a tick to schedule operations
- *****************/
-uint8_t sys_tick=0;
-void monitor(void){
-  //setup the system tick
-  //use Timer0 channel 1
-  pmc_enable_periph_clk(ID_TC1);
-  tc_init(TC0, 1,                        // channel 1
-	  TC_CMR_TCCLKS_TIMER_CLOCK5     // source clock (CLOCK5 = Slow Clock)
-	  | TC_CMR_CPCTRG                // up mode with automatic reset on RC match
-	  | TC_CMR_WAVE                  // waveform mode
-	  | TC_CMR_ACPA_CLEAR            // RA compare effect: clear
-	  | TC_CMR_ACPC_SET              // RC compare effect: set
-	  );
-  TC0->TC_CHANNEL[1].TC_RA = 0;  // doesn't matter
-  TC0->TC_CHANNEL[1].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
-  NVIC_EnableIRQ(TC1_IRQn);
-  tc_enable_interrupt(TC0, 1, TC_IER_CPCS);
-  tc_start(TC0,1);
-  uint8_t prev_tick=0;
-  //  char *buf;
-  while (1) {
-    if(sys_tick!=prev_tick){ 
-      prev_tick=sys_tick; //ticks are slow enough that we don't need mutex
-
-      //check if there is a valid data packet
-      if(wemo_power.valid==true){
-	core_log_power_data(&wemo_power);
-      }
-
-      server_read_power();
-    }
-    // don't worry about reading in commands right now
-    //buf = readline();
-    //if (buf != NULL)
-    //  runcmd(buf);
-  }
-}
-
-
-ISR(TC1_Handler)
-{
-  sys_tick++;
-  //clear the interrupt so we don't get stuck here
-  tc_get_status(TC0,1);
 }

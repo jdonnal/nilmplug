@@ -21,8 +21,10 @@ flag is set
 ************************************/
 
 
-power_pkt wemo_power;
+power_sample wemo_sample;
 uint8_t wemo_buffer [30];
+//take 30 byte buffer from WEMO and fill power sample struct
+uint8_t process_sample(uint8_t *buffer);
 
 void server_init(void){
   //allocate memory for the server buffer
@@ -75,7 +77,7 @@ void server_unlink(void){
   memset(server_buf,0x0,server_buf_len);
 }
 
-uint8_t process_packet(uint8_t *buffer){
+uint8_t process_sample(uint8_t *buffer){
   //process 30 byte data packet buffer
   uint8_t checksum = 0;
   uint8_t bytes[3];
@@ -104,50 +106,50 @@ uint8_t process_packet(uint8_t *buffer){
     }
   }
   //4.) Populate the power struct
-  wemo_power.vrms = vals[2];
-  wemo_power.irms = vals[3];
-  wemo_power.watts= vals[4];
-  wemo_power.pavg = vals[5];
-  wemo_power.pf = vals[6];
-  wemo_power.freq   = vals[7];
-  wemo_power.kwh  = vals[8];
+  wemo_sample.vrms = vals[2];
+  wemo_sample.irms = vals[3];
+  wemo_sample.watts= vals[4];
+  wemo_sample.pavg = vals[5];
+  wemo_sample.pf = vals[6];
+  wemo_sample.freq   = vals[7];
+  wemo_sample.kwh  = vals[8];
   //5.) Set the valid flag
-  wemo_power.valid = true;
+  wemo_sample.valid = true;
   //all done
   return true;
 };
 
 void server_read_power(void){
   //start listening to the WEMO
-  wemo_power.valid=false;
+  wemo_sample.valid=false;
   usart_enable_interrupt(WEMO_UART, US_IER_RXRDY);
 }
 
 ISR(UART1_Handler)
 {
   uint8_t tmp;
-  static uint8_t pkt[30]; //30 byte packet
-  static uint8_t pkt_idx;
+  static uint8_t buf[30]; //30 byte packet
+  static uint8_t buf_idx;
   usart_serial_getchar(WEMO_UART,&tmp);
-  switch(pkt_idx){
+  switch(buf_idx){
   case 0: //search for sync byte
     if(tmp==0xAE){
       //found sync byte, start capturing the packet
-      pkt[pkt_idx++]=tmp;
+      buf[buf_idx++]=tmp;
     }
     break;
-  case 30: //packet is full, read checksum and return data
-    if(process_packet(pkt)){
+  case 30: //samle is full, read checksum and return data
+    if(process_sample(buf)){
       //succes, stop listening to the UART
       usart_disable_interrupt(WEMO_UART, US_IER_RXRDY);
       //reset the index
-      pkt_idx=0;
+      buf_idx=0;
     } else { //failure, log it and look for the next packet
       wemo_log("bad packet");
-      pkt_idx=0;
+      buf_idx=0;
     }
     break;
   default: //reading packet
-    pkt[pkt_idx++]=tmp;
+    buf[buf_idx++]=tmp;
   }
 }

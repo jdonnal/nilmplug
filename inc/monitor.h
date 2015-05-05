@@ -22,6 +22,7 @@ int mon_relay_toggle(int argc, char **argv);
 
 //Functions implementing core commands
 
-void core_log_power_data(power_pkt *data);
+void core_log_power_data(power_sample *data);
+void core_transmit_power_packets(void);
 
 #endif
