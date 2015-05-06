@@ -37,7 +37,7 @@ int main(void) {
   char buf[100];
   rtc_get_time_str(buf);
   printf(buf); printf("\n");
-  //  i2c_rtc_set_time(1,2,3,4,5,6,7);
+  //  i2c_rtc_set_time(0,2,15,4,5,5,15);
   wemo_fs_init(); //file system (config and logging)
   if(wifi_init()!=0){
     rgb_led_set(255,0,0);

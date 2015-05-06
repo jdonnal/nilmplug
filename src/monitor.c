@@ -15,6 +15,7 @@
 #include "rtc.h"
 #include "server.h"
 #include "wifi.h"
+#include "wemo_fs.h"
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -113,11 +114,12 @@ void core_transmit_power_packet(void){
     }
   }
   //stick them in a json format
-  sprintf(content,"\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]",
-	  wemo_pkt.timestamp,vrms_str,irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
-  sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s",strlen(content),content);
+  sprintf(content,"{\"plug\":\"%s\",\"ip\":\"%s\",\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]}",
+	  "6CA2",wemo_config.wemo_ip,wemo_pkt.timestamp,vrms_str,
+	  irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
+  sprintf(tx_buffer,"POST /plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
   //send the packet!
-  r = wifi_transmit("18.111.15.238",80,tx_buffer);
+  r = wifi_transmit("18.111.15.238",5000,tx_buffer);
   if(r==TX_SUCCESS){
     wemo_pkt.status = POWER_PKT_EMPTY;
   } else {
