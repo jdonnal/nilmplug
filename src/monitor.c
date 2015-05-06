@@ -176,7 +176,7 @@ uint8_t sys_tick=0;
 void monitor(void){
   //setup the system tick
   //use Timer0 channel 1
-  pmc_enable_periph_clk(ID_TC1);
+  /*  pmc_enable_periph_clk(ID_TC1);
   tc_init(TC0, 1,                        // channel 1
 	  TC_CMR_TCCLKS_TIMER_CLOCK5     // source clock (CLOCK5 = Slow Clock)
 	  | TC_CMR_CPCTRG                // up mode with automatic reset on RC match
@@ -188,7 +188,30 @@ void monitor(void){
   TC0->TC_CHANNEL[1].TC_RC = 32000;  // sets frequency: 32kHz/32000 = 1 Hz
   NVIC_EnableIRQ(TC1_IRQn);
   tc_enable_interrupt(TC0, 1, TC_IER_CPCS);
-  tc_start(TC0,1);
+  tc_start(TC0,1);*/
+  //User PWM for system tick
+  pmc_enable_periph_clk(ID_PWM);
+  pwm_channel_disable(PWM, 0);
+  pwm_clock_t clock_setting = {
+    .ul_clka = 1000, //1 kHz
+    .ul_clkb = 0, //not used
+    .ul_mck = sysclk_get_cpu_hz()
+  };
+  pwm_init(PWM, &clock_setting);
+  //turn on channel 0, set to overflow at 1Hz
+  pwm_channel_t channel = {
+    .channel = 0,
+    .ul_duty = 0,
+    .ul_period = 1000, //1Hz 
+    .ul_prescaler = PWM_CMR_CPRE_CLKA,
+    .polarity = PWM_HIGH,
+  };
+  pwm_channel_init(PWM, &channel);
+  //enable interrupts on overflow
+  pwm_channel_enable_interrupt(PWM,0,0);
+  pwm_channel_enable(PWM,0);
+  NVIC_EnableIRQ(PWM_IRQn);
+
   uint8_t prev_tick=0;
   //initialize the power packet
   wemo_pkt.status = POWER_PKT_EMPTY;
@@ -209,11 +232,18 @@ void monitor(void){
   }
 }
 
-
-ISR(TC1_Handler)
+ISR(PWM_Handler)
 {
   sys_tick++;
   gpio_toggle_pin(BUTTON_PIN);
+  //clear the interrupt so we don't get stuck here
+  pwm_channel_get_interrupt_status(PWM);  
+}
+
+ISR(TC1_Handler)
+{
+  //  sys_tick++;
+  //gpio_toggle_pin(BUTTON_PIN);
   //clear the interrupt so we don't get stuck here
   tc_get_status(TC0,1);
 }

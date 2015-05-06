@@ -22,6 +22,7 @@
 #include <twi.h>
 #include <delay.h>
 #include <serial.h>
+#include <pwm.h>
 
 // From module: High Speed Multimedia Card Interface
 #include <hsmci.h>

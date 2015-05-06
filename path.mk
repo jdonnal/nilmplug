@@ -2,7 +2,7 @@ SRC  = $(wildcard src/*.c)
 INC  = inc
 
 # Subfolders to compile and include from asf/sam/drivers
-SAM_DRIVERS = pio pmc rstc wdt dacc adc udp matrix usart tc twi hsmci uart
+SAM_DRIVERS = pio pmc rstc wdt dacc adc udp matrix usart tc twi hsmci uart pwm
 SRC += $(wildcard $(SAM_DRIVERS:%=asf/sam/drivers/%/*.c))
 INC += $(SAM_DRIVERS:%=asf/sam/drivers/%)
 
