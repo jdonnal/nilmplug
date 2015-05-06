@@ -194,8 +194,8 @@ int wifi_send_data(int ch, const char* data){
     rx_wait=true; //reset the wait flag
     while(rx_wait && data_tx_status!=TX_SUCCESS);
     tc_stop(TC0,0);
+    //the success flag is set *after* we receive the server's response
     if(data_tx_status==TX_SUCCESS){
-      delay_ms(500); //wait 0.5 sec to discard returned data (hack)
       data_tx_status=TX_IDLE;
       rx_wait = false;
       return 0;
@@ -311,12 +311,14 @@ ISR(UART0_Handler)
     }
   } else if(rx_wait && data_tx_status==TX_PENDING){
     //we are transmitting, no need to capture response,
-    //just wait for SEND OK\r\n, use a 9 char circular buffer
-    if(rx_buf_idx>8){
-      for(i=0;i<8;i++)
+    //after transmission we receive SEND OK\r\n and after
+    //response we receive \r\nOK\r\n, we only expect 1 packet so
+    //just wait for \r\nOK\r\n, use a 6 char circular buffer
+    if(rx_buf_idx>5){
+      for(i=0;i<5;i++)
 	rx_buf[i]=rx_buf[i+1];
-      rx_buf[8]=tmp;
-      if(strstr((char*)rx_buf,"SEND OK\r\n")==(char*)rx_buf){
+      rx_buf[5]=tmp;
+      if(strstr((char*)rx_buf,"\r\nOK\r\n")==(char*)rx_buf){
 	data_tx_status=TX_SUCCESS;
       }
     } else{

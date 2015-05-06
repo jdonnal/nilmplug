@@ -114,12 +114,13 @@ void core_transmit_power_packet(void){
     }
   }
   //stick them in a json format
+  memset(content,0x0,500); memset(tx_buffer,0x0,1100);
   sprintf(content,"{\"plug\":\"%s\",\"ip\":\"%s\",\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]}",
 	  "6CA2",wemo_config.wemo_ip,wemo_pkt.timestamp,vrms_str,
 	  irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
-  sprintf(tx_buffer,"POST /plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
+  sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
   //send the packet!
-  r = wifi_transmit("18.111.15.238",5000,tx_buffer);
+  r = wifi_transmit("18.111.15.238",80,tx_buffer);
   if(r==TX_SUCCESS){
     wemo_pkt.status = POWER_PKT_EMPTY;
   } else {
@@ -184,7 +185,7 @@ void monitor(void){
 	  | TC_CMR_ACPC_SET              // RC compare effect: set
 	  );
   TC0->TC_CHANNEL[1].TC_RA = 0;  // doesn't matter
-  TC0->TC_CHANNEL[1].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
+  TC0->TC_CHANNEL[1].TC_RC = 32000;  // sets frequency: 32kHz/32000 = 1 Hz
   NVIC_EnableIRQ(TC1_IRQn);
   tc_enable_interrupt(TC0, 1, TC_IER_CPCS);
   tc_start(TC0,1);
@@ -212,6 +213,7 @@ void monitor(void){
 ISR(TC1_Handler)
 {
   sys_tick++;
+  gpio_toggle_pin(BUTTON_PIN);
   //clear the interrupt so we don't get stuck here
   tc_get_status(TC0,1);
 }

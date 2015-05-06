@@ -7,7 +7,7 @@ void monitor(void);
 
 //board pins
 #define RELAY_PIN PIO_PA13_IDX
-
+#define BUTTON_PIN PIO_PB14_IDX
 
 // Functions implementing monitor commands
 // these functions are meant to be called over

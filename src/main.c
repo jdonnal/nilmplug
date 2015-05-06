@@ -59,6 +59,10 @@ void io_init(void){
   pmc_enable_periph_clk(ID_PIOA);
   gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
 
+  //Button
+  pmc_enable_periph_clk(ID_PIOB);
+  gpio_configure_pin(BUTTON_PIN, PIO_OUTPUT_0);
+  
   //SD Card pins
   gpio_configure_pin(PIO_PA1_IDX, PIO_OUTPUT_0);
   gpio_configure_pin(PIN_HSMCI_MCCDA_GPIO, PIN_HSMCI_MCCDA_FLAGS);
