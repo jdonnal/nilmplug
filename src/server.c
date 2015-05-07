@@ -101,7 +101,7 @@ uint8_t process_sample(uint8_t *buffer){
     bytes[1] = buffer[3*i+3];
     bytes[2] = buffer[3*i+4];
     vals[i] = bytes[0] | bytes[1]<<8 | bytes[2]<<16;
-    if((bytes[2]&0x08)==0x08){
+    if((bytes[2]&0x80)==0x80){
       vals[i] |= 0xFF << 24; //sign extend top byte
     }
   }

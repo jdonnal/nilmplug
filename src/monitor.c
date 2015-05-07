@@ -19,7 +19,10 @@
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
-power_pkt wemo_pkt; //buffer of wemo power_samples for transmission
+
+//ping pong packet structs for filling and transmitting
+power_pkt power_pkts[2];
+power_pkt *cur_pkt, *tx_pkt;
 
 struct Command {
 	const char *name;
@@ -92,17 +95,22 @@ mon_relay_toggle(int argc, char **argv){
 }
 
 /***** Core commands ****/
-void core_transmit_power_packet(void){
+void core_transmit_power_packet(power_pkt *wemo_pkt){
   int r, i, j;
   char tx_buffer[1100], content[500];
   char vrms_str[100], irms_str[100],  watts_str[100], pavg_str[100];
   char pf_str[100],   freq_str[100],    kwh_str[100];
   char *bufs[7] = {vrms_str, irms_str, watts_str, pavg_str, pf_str, freq_str, kwh_str};
-  int32_t *srcs[7] = {wemo_pkt.vrms, wemo_pkt.irms, wemo_pkt.pavg, wemo_pkt.watts,
-		    wemo_pkt.pf, wemo_pkt.freq, wemo_pkt.kwh};
+  int32_t *srcs[7] = {wemo_pkt->vrms, wemo_pkt->irms, wemo_pkt->pavg, wemo_pkt->watts,
+		    wemo_pkt->pf, wemo_pkt->freq, wemo_pkt->kwh};
   char *buf; int32_t *src;
+  //make sure all the data is present
+  if(wemo_pkt->status != POWER_PKT_READY){
+    printf("Error, packet is not ready to tx!\n");
+    return;
+  }
   //now we are filling up the POST request
-  wemo_pkt.status = POWER_PKT_TX_IN_PROG;
+  wemo_pkt->status = POWER_PKT_TX_IN_PROG;
   //print out the data arrays as strings
   for(j=0;j<7;j++){
     buf = bufs[j]; src = srcs[j];
@@ -116,52 +124,64 @@ void core_transmit_power_packet(void){
   //stick them in a json format
   memset(content,0x0,500); memset(tx_buffer,0x0,1100);
   sprintf(content,"{\"plug\":\"%s\",\"ip\":\"%s\",\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]}",
-	  "6CA2",wemo_config.wemo_ip,wemo_pkt.timestamp,vrms_str,
+	  "6CA2",wemo_config.wemo_ip,wemo_pkt->timestamp,vrms_str,
 	  irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
   sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
   //send the packet!
   r = wifi_transmit("18.111.15.238",80,tx_buffer);
   if(r==TX_SUCCESS){
-    wemo_pkt.status = POWER_PKT_EMPTY;
+    wemo_pkt->status = POWER_PKT_EMPTY;
   } else {
-    wemo_pkt.status = POWER_PKT_TX_FAIL;
-  }
-  if(r==TX_ERROR){
-    printf("resetting wifi\n");
-    wifi_init();
+    wemo_pkt->status = POWER_PKT_TX_FAIL;
   }
 }
 
+/////////////////////////
+// core_log_power_data
+//     Add a power_sample to the current power_pkt
+//     When the pkt is full switch to the other pkt
+//     (ping pong buffer). Throws an error if the 
+//     next buffer is not empty (still being TX'd)
 void core_log_power_data(power_sample *sample){
-  static int wemo_pkt_idx = 0;
+  static int wemo_sample_idx = 0;
+  power_pkt *tmp_pkt;
   //check for error conditions
-  switch(wemo_pkt.status){
+  switch(cur_pkt->status){
   case POWER_PKT_EMPTY:
-    if(wemo_pkt_idx!=0){
+    if(wemo_sample_idx!=0){
       printf("Error, empty packet but nonzero index\n");
       return;
     }
     //set the timestamp for the packet with the first one
-    rtc_get_time_str(wemo_pkt.timestamp);
+    rtc_get_time_str(cur_pkt->timestamp);
     break;
   case POWER_PKT_TX_IN_PROG:
     printf("Error, this packet is still being transmitted\n");
     return;
   case POWER_PKT_TX_FAIL:
-    printf("Prev TX failed... sorry :(\n");
+    printf("Error, this packet failed TX and isn't clean\n");
+    break;
+  case POWER_PKT_READY:
+    printf("Transmit this packet first!\n");
+    return;
   }
-  wemo_pkt.status = POWER_PKT_FILLING;
-  wemo_pkt.vrms[wemo_pkt_idx]  = sample->vrms;
-  wemo_pkt.irms[wemo_pkt_idx]  = sample->irms;
-  wemo_pkt.watts[wemo_pkt_idx] = sample->watts;
-  wemo_pkt.pavg[wemo_pkt_idx]  = sample->pavg;
-  wemo_pkt.freq[wemo_pkt_idx]  = sample->freq;
-  wemo_pkt.pf[wemo_pkt_idx]    = sample->pf;
-  wemo_pkt.kwh[wemo_pkt_idx]   = sample->kwh;
-  wemo_pkt_idx++;
-  if(wemo_pkt_idx==PKT_SIZE){
-    core_transmit_power_packet();
-    wemo_pkt_idx = 0;
+  cur_pkt->status = POWER_PKT_FILLING;
+  cur_pkt->vrms[wemo_sample_idx]  = sample->vrms;
+  cur_pkt->irms[wemo_sample_idx]  = sample->irms;
+  cur_pkt->watts[wemo_sample_idx] = sample->watts;
+  cur_pkt->pavg[wemo_sample_idx]  = sample->pavg;
+  cur_pkt->freq[wemo_sample_idx]  = sample->freq;
+  cur_pkt->pf[wemo_sample_idx]    = sample->pf;
+  cur_pkt->kwh[wemo_sample_idx]   = sample->kwh;
+  wemo_sample_idx++;
+  if(wemo_sample_idx==PKT_SIZE){
+    cur_pkt->status=POWER_PKT_READY;
+    //switch buffers
+    tmp_pkt = cur_pkt;
+    cur_pkt = tx_pkt;
+    tx_pkt = tmp_pkt;
+    //start filling the new buffer
+    wemo_sample_idx = 0;
   }
 }
 
@@ -174,21 +194,6 @@ void core_log_power_data(power_sample *sample){
 uint8_t sys_tick=0;
 
 void monitor(void){
-  //setup the system tick
-  //use Timer0 channel 1
-  /*  pmc_enable_periph_clk(ID_TC1);
-  tc_init(TC0, 1,                        // channel 1
-	  TC_CMR_TCCLKS_TIMER_CLOCK5     // source clock (CLOCK5 = Slow Clock)
-	  | TC_CMR_CPCTRG                // up mode with automatic reset on RC match
-	  | TC_CMR_WAVE                  // waveform mode
-	  | TC_CMR_ACPA_CLEAR            // RA compare effect: clear
-	  | TC_CMR_ACPC_SET              // RC compare effect: set
-	  );
-  TC0->TC_CHANNEL[1].TC_RA = 0;  // doesn't matter
-  TC0->TC_CHANNEL[1].TC_RC = 32000;  // sets frequency: 32kHz/32000 = 1 Hz
-  NVIC_EnableIRQ(TC1_IRQn);
-  tc_enable_interrupt(TC0, 1, TC_IER_CPCS);
-  tc_start(TC0,1);*/
   //User PWM for system tick
   pmc_enable_periph_clk(ID_PWM);
   pwm_channel_disable(PWM, 0);
@@ -198,11 +203,11 @@ void monitor(void){
     .ul_mck = sysclk_get_cpu_hz()
   };
   pwm_init(PWM, &clock_setting);
-  //turn on channel 0, set to overflow at 1Hz
+  //turn on channel 0
   pwm_channel_t channel = {
     .channel = 0,
     .ul_duty = 0,
-    .ul_period = 1000, //1Hz 
+    .ul_period = 5000, //sample every 5 seconds
     .ul_prescaler = PWM_CMR_CPRE_CLKA,
     .polarity = PWM_HIGH,
   };
@@ -212,18 +217,26 @@ void monitor(void){
   pwm_channel_enable(PWM,0);
   NVIC_EnableIRQ(PWM_IRQn);
 
-  uint8_t prev_tick=0;
-  //initialize the power packet
-  wemo_pkt.status = POWER_PKT_EMPTY;
+  //initialize the power packet buffers
+  tx_pkt = &power_pkts[0];
+  cur_pkt = &power_pkts[1];
+  //both are empty
+  tx_pkt->status = POWER_PKT_EMPTY;
+  cur_pkt->status = POWER_PKT_EMPTY;
   while (1) {
-    if(sys_tick!=prev_tick){ 
-      prev_tick=sys_tick; //ticks are slow enough that we don't need mutex
-      //check if there is a valid data packet
-      if(wemo_sample.valid==true){
-	core_log_power_data(&wemo_sample);
-      }
 
-      server_read_power();
+    if(tx_pkt->status==POWER_PKT_READY){
+      //try to send the packet 
+      core_transmit_power_packet(tx_pkt);
+      if(tx_pkt->status==POWER_PKT_TX_FAIL){
+	printf("resetting wifi\n");
+	wifi_init();
+	//try again (only time for 2 tries)
+	tx_pkt->status=POWER_PKT_READY;
+	core_transmit_power_packet(tx_pkt);
+      }
+      //clear out the packet so we can start again
+      tx_pkt->status=POWER_PKT_EMPTY;
     }
     // don't worry about reading in commands right now
     //buf = readline();
@@ -236,6 +249,12 @@ ISR(PWM_Handler)
 {
   sys_tick++;
   gpio_toggle_pin(BUTTON_PIN);
+  //check if there is a valid wemo sample
+  if(wemo_sample.valid==true){
+    core_log_power_data(&wemo_sample);
+  }
+  //take a wemo reading
+  server_read_power();
   //clear the interrupt so we don't get stuck here
   pwm_channel_get_interrupt_status(PWM);  
 }
