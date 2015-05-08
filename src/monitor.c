@@ -62,16 +62,16 @@ mon_rtc(int argc, char **argv){
   char buf[30];
   uint8_t yr, dt, mo, dw, hr, mn, sc;
   if(argc<2){
-    printf("wrong number of args to set time");
+    printf("wrong number of args to set time\n");
     return -1;
   }
   if(strstr(argv[1],"get")==argv[1]){
     rtc_get_time_str(buf);
-    printf("Time: %s",buf);
+    printf("Time: %s\n",buf);
   }
   else if(strstr(argv[1],"set")==argv[1]){
     if(argc!=9){
-      printf("please specify a time");
+      printf("please specify a time\n");
       return -1;
     }
     yr = atoi(argv[2]);
@@ -85,11 +85,11 @@ mon_rtc(int argc, char **argv){
       printf("error setting RTC\n");
     else{
       rtc_get_time_str(buf);
-      printf("Set time to: %s",buf);
+      printf("Set time to: %s\n",buf);
     }
   }
   else{
-    printf("bad arguments to rtc");
+    printf("bad arguments to rtc\n");
     return -1;
   }
   return 0;
@@ -98,7 +98,7 @@ mon_rtc(int argc, char **argv){
 int
 mon_relay(int argc, char **argv){
   if(argc!=2){
-    printf("wrong number of args to relay");
+    printf("wrong number of args to relay\n");
     return -1;
   }
   if(strstr(argv[1],"on")==argv[1])
@@ -108,7 +108,7 @@ mon_relay(int argc, char **argv){
   else if(strstr(argv[1],"toggle")==argv[1])
     gpio_toggle_pin(RELAY_PIN);
   else{
-    printf("bad argument to relay");
+    printf("bad argument to relay\n");
     return -1;
   }
   return 0;
@@ -158,44 +158,45 @@ mon_config(int argc, char **argv){
   //--- request to get a config ----
   if(strstr(argv[1],"get")==argv[1]){
     if(argc!=3){
-      printf("specify a config to read");
+      printf("specify a config to read\n");
       return -1;
     }
     //find the matching config
     for(i=0;i<GETTABLE_CONFIG_SIZE;i++){
       if(strstr(argv[2],gettable_configs[i])==argv[2]){
 	printf(gettable_config_vals[i]);
+	printf("\n");
 	return 0;
       }
     } //couldn't find config
-    printf("Error, config [%s] is not available",argv[2]);
+    printf("Error, config [%s] is not available\n",argv[2]);
     return -1;
   }
   //--- request to set a config ----
   if(strstr(argv[1],"set")==argv[1]){
-    if(argc!=4){
+    if(argc<3){
+      //clear the specified config
       printf("specify a config and the value");
     }
     //find the matching config
     for(i=0;i<SETTABLE_CONFIG_SIZE;i++){
       if(strstr(argv[2],settable_configs[i])==argv[2]){
-	if(strlen(argv[3])>MAX_CONFIG_LEN){
-	  printf("requested value is too large to store");
+	if(argc==4 && strlen(argv[3])>MAX_CONFIG_LEN){
+	  printf("requested value is too large to store\n");
 	  return -1;
 	}
 	//clear out the existing config
 	memset(settable_config_vals[i],0x0,MAX_CONFIG_LEN);
-	//save the config to the config struct
-	memcpy(settable_config_vals[i],argv[3],strlen(argv[3]));
+	//save the config to the config struct, if no value is specified
+	//leave it cleared
+	if(argc==4)
+	  memcpy(settable_config_vals[i],argv[3],strlen(argv[3]));
 	//if echo is on, read back the result
 	if(wemo_config.echo){
-	  printf("Set [%s] to [%s]",argv[2],settable_config_vals[i]);
+	  printf("Set [%s] to [%s]\n",argv[2],settable_config_vals[i]);
 	}
 	//save the new config
 	fs_write_config();
-	if(wemo_config.echo)
-	  printf("saved config");
- 	return 0;
       }
     }
   }
@@ -203,7 +204,6 @@ mon_config(int argc, char **argv){
 }
 /***** Core commands ****/
 void core_putc(void* stream, char c){
-  if(wemo_config.echo)
     udi_cdc_write_buf(&c,1);
 }
 
@@ -358,16 +358,14 @@ uint8_t sys_tick=0;
 bool wifi_on = false; 
 
 void monitor(void){
-  char buf[100];
+
   //initialize the power packet buffers
   tx_pkt = &power_pkts[0];
   cur_pkt = &power_pkts[1];
   //both are empty
   tx_pkt->status = POWER_PKT_EMPTY;
   cur_pkt->status = POWER_PKT_EMPTY;
-  //print the time for debugging
-  rtc_get_time_str(buf);
-  printf(buf); printf("\n");
+
   //initialize runtime configs
   wemo_config.echo = false;
   //check if we are on USB
@@ -411,11 +409,6 @@ void monitor(void){
       //clear out the packet so we can start again
       tx_pkt->status=POWER_PKT_EMPTY;
     }
-    //check for commands from USB
-    // don't worry about reading in commands right now
-    //buf = readline();
-    //if (buf != NULL)
-    //  runcmd(buf);
   }
 }
 
@@ -455,13 +448,14 @@ core_read_usb(uint8_t port)
       cmd_buf[cmd_buf_idx++] = c;
     } else if (c == '\n' || c == '\r') {
       cmd_buf[cmd_buf_idx] = 0; //we have a complete command
-      printf("\r\n");
+      if(wemo_config.echo)
+	printf("\r\n");
       runcmd(cmd_buf); //  run it
       //clear the buffer
       cmd_buf_idx = 0;
       memset(cmd_buf,0x0,CMDBUF_SIZE);
       if(wemo_config.echo)
-	printf("\r\n> "); //print the prompt
+	printf("\r> "); //print the prompt
     }
   }
 }
@@ -501,6 +495,6 @@ runcmd(char *buf)
       return commands[i].func(argc, argv);
     }
   }
-  printf("Unknown command '%s'", argv[0]);
+  printf("Unknown command '%s'\n", argv[0]);
   return 0;
 }
