@@ -3,7 +3,7 @@
 
 #include "compiler.h"
 #include "board.h"
-
+#include "monitor.h"
 
 //! Device definition (mandatory)
 #define  USB_DEVICE_VENDOR_ID             USB_VID_ATMEL
@@ -13,7 +13,7 @@
 #define  USB_DEVICE_MINOR_VERSION         0
 #define  USB_DEVICE_POWER                 100 // Consumption on Vbus line (mA)
 #define  USB_DEVICE_ATTR                  \
-	(USB_CONFIG_ATTR_SELF_POWERED)
+  	(USB_CONFIG_ATTR_SELF_POWERED)
 //        (USB_CONFIG_ATTR_BUS_POWERED)   
 //	(USB_CONFIG_ATTR_REMOTE_WAKEUP|USB_CONFIG_ATTR_SELF_POWERED)
 //	(USB_CONFIG_ATTR_REMOTE_WAKEUP|USB_CONFIG_ATTR_BUS_POWERED)
@@ -58,10 +58,10 @@
 //! Interface callback definition
 #define  UDI_CDC_ENABLE_EXT(port)         usb_cdc_enable(port)
 #define  UDI_CDC_DISABLE_EXT(port)        usb_cdc_disable(port)
-#define  UDI_CDC_RX_NOTIFY(port)          usb_rx_notify(port)
+#define  UDI_CDC_RX_NOTIFY(port)          core_read_usb(port)
 #define  UDI_CDC_TX_EMPTY_NOTIFY(port)
 #define  UDI_CDC_SET_CODING_EXT(port,cfg) usb_cdc_config(port,cfg)
-#define  UDI_CDC_SET_DTR_EXT(port,set)    usb_cdc_set_dtr(port,set)
+#define  UDI_CDC_SET_DTR_EXT(port,set)    core_usb_enable(port,set)
 #define  UDI_CDC_SET_RTS_EXT(port,set)
 
 //! Define it when the transfer CDC Device to Host is a low rate (<512000 bauds)

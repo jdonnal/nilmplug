@@ -1,8 +1,7 @@
 #include <asf.h>
 #include "string.h"
-#include "server.h"
+#include "wemo.h"
 #include "monitor.h"
-#include "wemo_fs.h"
 
 /**********************************
 ------Theory of Operation----------
@@ -26,11 +25,8 @@ uint8_t wemo_buffer [30];
 //take 30 byte buffer from WEMO and fill power sample struct
 uint8_t process_sample(uint8_t *buffer);
 
-void server_init(void){
+void wemo_init(void){
   //allocate memory for the server buffer
-  //*****CHECK THIS CODE!!!*****
-  server_buf = (char*)malloc(SERVER_BUF_SIZE);
-  server_buf_len=SERVER_BUF_SIZE;
   //set up the power meter UART
   static usart_serial_options_t usart_options = {
     .baudrate = WEMO_UART_BAUDRATE,
@@ -45,37 +41,6 @@ void server_init(void){
   NVIC_EnableIRQ(WEMO_UART_IRQ);
 };
 
-void server_process_data(void){
-  char data[100];
-  int chan_num, data_size;
-  //match against the data
-  sscanf(server_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, data);
-  printf("Got [%d] bytes on channel [%d]: %s\n",
-	 data_size, chan_num, data);
-  if(strstr(data,"relay_on")==data){
-    mon_relay_on(0,NULL);
-  }
-  if(strstr(data,"relay_off")==data){
-    mon_relay_off(0,NULL);
-  }
-  else{
-    printf("unknown command: %s\n",data);
-  }
-  //clear the server buffer
-  memset(server_buf,0x0,server_buf_len);
-}
-
-void server_link(void){
-  printf("linked!\n");
-  //clear the server buffer
-  memset(server_buf,0x0,server_buf_len);
-}
-
-void server_unlink(void){
-  printf("unlinked\n");
-  //clear the server buffer
-  memset(server_buf,0x0,server_buf_len);
-}
 
 uint8_t process_sample(uint8_t *buffer){
   //process 30 byte data packet buffer
@@ -119,7 +84,7 @@ uint8_t process_sample(uint8_t *buffer){
   return true;
 };
 
-void server_read_power(void){
+void wemo_read_power(void){
   //start listening to the WEMO
   wemo_sample.valid=false;
   usart_enable_interrupt(WEMO_UART, US_IER_RXRDY);
@@ -145,7 +110,7 @@ ISR(UART1_Handler)
       //reset the index
       buf_idx=0;
     } else { //failure, log it and look for the next packet
-      wemo_log("bad packet");
+      core_log("bad packet");
       buf_idx=0;
     }
     break;

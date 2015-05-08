@@ -1,10 +1,10 @@
 #include <asf.h>
 #include "wemo_fs.h"
 #include "rtc.h"
-
+#include "monitor.h"
 #include <string.h>
 
-config wemo_config;
+
 
 FATFS fs;
 FIL log_file;

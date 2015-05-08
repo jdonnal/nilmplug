@@ -48,9 +48,9 @@
 #define CONF_SD_MMC_H_INCLUDED
 
 #define SD_MMC_HSMCI_MEM_CNT          1
-// Card Detect not implemted, dummy pin
-#    define SD_MMC_0_CD_GPIO              (PIO_PB14_IDX)
-#    define SD_MMC_0_CD_PIO_ID            ID_PIOB
+// Card Detect
+#    define SD_MMC_0_CD_GPIO              (PIO_PA19_IDX)
+#    define SD_MMC_0_CD_PIO_ID            ID_PIOA
 #    define SD_MMC_0_CD_FLAGS             (PIO_INPUT | PIO_PULLUP)
 #    define SD_MMC_0_CD_DETECT_VALUE      0
 

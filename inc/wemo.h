@@ -36,13 +36,8 @@ typedef struct power_sample_struct {
 
 extern power_sample wemo_sample;
 
-char* server_buf;
-int server_buf_len;
 
-void server_init(void);
-void server_read_power(void);
-void server_process_data(void);
-void server_link(void);
-void server_unlink(void);
+void wemo_init(void);
+void wemo_read_power(void);
 
 #endif

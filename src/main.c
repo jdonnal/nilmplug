@@ -20,7 +20,7 @@ void relay_off(void);
 
 int main(void) {
 
-  ptr_put = (int (*)(void volatile*,char))&dbgputc;
+  ptr_put = (int (*)(void volatile*,char))&usb_putc;
   setbuf(stdout, NULL);
 
   // Switch over to the crystal oscillator
@@ -31,20 +31,35 @@ int main(void) {
   io_init();
   rgb_led_init();
   rgb_led_set(242,222,68);
-  cpu_irq_enable();
+
   usb_init();
   i2c_rtc_init();
-  char buf[100];
-  rtc_get_time_str(buf);
-  printf(buf); printf("\n");
-  //  i2c_rtc_set_time(0,2,15,4,5,5,15);
   wemo_fs_init(); //file system (config and logging)
-  if(wifi_init()!=0){
-    rgb_led_set(255,0,0);
-    while(1);
-  }
-  server_init(); 
-  rgb_led_set(0,125,30);
+  wemo_init();  //interacting with WEMO
+  //initialize system tick with PWM
+  pmc_enable_periph_clk(ID_PWM);
+  pwm_channel_disable(PWM, 0);
+  pwm_clock_t clock_setting = {
+    .ul_clka = 1000, //1 kHz
+    .ul_clkb = 0, //not used
+    .ul_mck = sysclk_get_cpu_hz()
+  };
+  pwm_init(PWM, &clock_setting);
+  //               turn on channel 0
+  pwm_channel_t channel = {
+    .channel = 0,
+    .ul_duty = 0,
+    .ul_period = 5000, //sample every 5 seconds
+    .ul_prescaler = PWM_CMR_CPRE_CLKA,
+    .polarity = PWM_HIGH,
+  };
+  pwm_channel_init(PWM, &channel);
+  //                enable interrupts on overflow
+  pwm_channel_enable_interrupt(PWM,0,0);
+  pwm_channel_enable(PWM,0);
+  NVIC_EnableIRQ(PWM_IRQn);
+  //ready to go! enable interrupts
+  cpu_irq_enable();
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");
@@ -55,16 +70,17 @@ int main(void) {
 
 
 void io_init(void){
-  //Relay
   pmc_enable_periph_clk(ID_PIOA);
-  gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
-
-  //Button
   pmc_enable_periph_clk(ID_PIOB);
-  gpio_configure_pin(BUTTON_PIN, PIO_OUTPUT_0);
+  
+  //Relay
+  gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
+  //VBUS
+  gpio_configure_pin(VBUS_PIN, PIO_INPUT);
+  //Button
+  gpio_configure_pin(BUTTON_PIN, PIO_INPUT);
   
   //SD Card pins
-  gpio_configure_pin(PIO_PA1_IDX, PIO_OUTPUT_0);
   gpio_configure_pin(PIN_HSMCI_MCCDA_GPIO, PIN_HSMCI_MCCDA_FLAGS);
   gpio_configure_pin(PIN_HSMCI_MCCK_GPIO, PIN_HSMCI_MCCK_FLAGS);
   gpio_configure_pin(PIN_HSMCI_MCDA0_GPIO, PIN_HSMCI_MCDA0_FLAGS);

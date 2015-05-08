@@ -2,8 +2,7 @@
 #include <stdio.h>
 #include "string.h"
 #include "wifi.h"
-#include "server.h"
-#include "wemo_fs.h" //for wemo_config
+#include "monitor.h"
 
 //** Globals for wifi_send_cmd **
 uint8_t rx_buf [RESP_BUF_SIZE];
@@ -15,8 +14,8 @@ char rx_complete_str[30]; //expected response of command to ESP8266
 bool rx_complete = false; //flag set by UART int when rx_complete_str matches
 bool data_tx = false; //we are transmitting data
 
-//local index into server buffer
-uint32_t server_buf_idx = 0;
+//index into incoming data buffer (data from another server)
+uint32_t wifi_rx_buf_idx = 0;
 
 int wifi_send_cmd(const char* cmd, const char* resp_complete, char* resp, 
 		  uint32_t maxlen, int timeout);
@@ -97,7 +96,7 @@ int wifi_init(void){
   if(num_tries>=MAX_TRIES){
   //log the failure
     sprintf(tx_buf,"Could not join [%s]",wemo_config.wifi_ssid);
-    wemo_log(tx_buf);
+    core_log(tx_buf);
     printf("error joinining [%s]\n",wemo_config.wifi_ssid);
     return -1;
   }
@@ -118,7 +117,7 @@ int wifi_init(void){
   //log the event
   sprintf(tx_buf,"Joined [%s] with IP [%s]",wemo_config.wifi_ssid,wemo_config.wemo_ip);
   printf("%s\n",tx_buf);
-  wemo_log(tx_buf);
+  core_log(tx_buf);
   return 0;
 }
 
@@ -164,15 +163,6 @@ int wifi_server_start(void){
   return 0;
 };
 
-//Process the server_buf string
-void wifi_process_data(void){
-  //if we are linked, look for incoming data
-  gpio_toggle_pin(PIO_PA13_IDX);
-
-  memset(server_buf,0x0,SERVER_BUF_SIZE);
-  server_buf_idx=0;
-}
-
 int wifi_send_data(int ch, const char* data){
   char cmd[100];
   int timeout = 2; //wait 2 seconds to transmit the data
@@ -182,8 +172,8 @@ int wifi_send_data(int ch, const char* data){
   rx_wait=true;
   rx_buf_idx = 0;
   memset(rx_buf,0x0,RESP_BUF_SIZE);
-  memset(server_buf,0x0,SERVER_BUF_SIZE); //to make debugging easier
-  server_buf_idx=0;
+  memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE); //to make debugging easier
+  wifi_rx_buf_idx=0;
   usart_serial_write_packet(WIFI_UART,(uint8_t*)cmd,strlen(cmd));
   usart_serial_write_packet(WIFI_UART,(uint8_t*)data,strlen(data));
   //now wait for the data to be sent
@@ -290,6 +280,8 @@ ISR(TC0_Handler)
 ISR(UART0_Handler)
 {
   uint8_t tmp, i;
+
+
   usart_serial_getchar(WIFI_UART,&tmp);
   //check whether this is a command response or 
   //new data from the web (unsollicted response)
@@ -324,32 +316,35 @@ ISR(UART0_Handler)
     } else{
       rx_buf[rx_buf_idx++]=tmp;
     }
-  }else { //this is unsollicted data
-    if(server_buf_idx>=SERVER_BUF_SIZE){
+  }else { 
+    //this is unsollicted data, incoming from Internet,
+    //process into wifi_rx_buf and pass off to the the core 
+    //when the reception is complete
+    if(wifi_rx_buf_idx>=WIFI_RX_BUF_SIZE){
       printf("error!\n");
       return; //ERROR!!!!
     }
-    server_buf[server_buf_idx++]=(char)tmp;
+    wifi_rx_buf[wifi_rx_buf_idx++]=(char)tmp;
     //if we have a full line, send it to the server process
-    if(server_buf_idx>=6){
+    if(wifi_rx_buf_idx>=6){
       //check for link 
-      if((strstr(server_buf,"Link\r\n")==server_buf) ||
-	 (strstr(server_buf,"Linked\r\n")==server_buf)){
-	server_link();
-	server_buf_idx=0;
+      if((strstr(wifi_rx_buf,"Link\r\n")==wifi_rx_buf) ||
+	 (strstr(wifi_rx_buf,"Linked\r\n")==wifi_rx_buf)){
+	core_wifi_link();
+	wifi_rx_buf_idx=0;
 	return;
       }
       //check for unlink
-      if(strstr(server_buf,"Unlink\r\n")==server_buf){
-	server_unlink();
-	server_buf_idx=0;
+      if(strstr(wifi_rx_buf,"Unlink\r\n")==wifi_rx_buf){
+	core_wifi_unlink();
+	wifi_rx_buf_idx=0;
 	return;
       }
       //check for data
-      if(strstr(&server_buf[server_buf_idx-4],"OK\r\n")==
-	 &server_buf[server_buf_idx-4]){
-	server_process_data();
-	server_buf_idx=0;
+      if(strstr(&wifi_rx_buf[wifi_rx_buf_idx-4],"OK\r\n")==
+	 &wifi_rx_buf[wifi_rx_buf_idx-4]){
+	core_process_wifi_data();
+	wifi_rx_buf_idx=0;
 	return;
       }
     }

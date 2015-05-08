@@ -10,19 +10,27 @@
 #include "iv_dacc.h"
 #include "usb.h"
 #include "types.h"
-#include "readline.h"
 #include "monitor.h"
 #include "rtc.h"
-#include "server.h"
+#include "wemo.h"
 #include "wifi.h"
 #include "wemo_fs.h"
+#include "rgb_led.h"
 
-#define CMDBUF_SIZE	80	// enough for one VGA text line
-
+//data structures and functions for 
+//command line interaction
+#define CMDBUF_SIZE	80
+#define WHITESPACE "\t\r\n "
+#define MAXARGS 16
+static int runcmd(char *buf);
+char cmd_buf[CMDBUF_SIZE];
+int cmd_buf_idx = 0;
 
 //ping pong packet structs for filling and transmitting
 power_pkt power_pkts[2];
 power_pkt *cur_pkt, *tx_pkt;
+//data structure for wemo configuration
+config wemo_config;
 
 struct Command {
 	const char *name;
@@ -42,14 +50,14 @@ static struct Command commands[] = {
 
 int
 mon_test(int argc, char **argv){
-  print ("[monitor] hello world!\n");
+  printf("[monitor] hello world!\n");
   return 0;
 }
 
 int
 mon_set_rtc(int argc, char **argv){
   if(argc!=8){
-    print("wrong number of args to set time\n");
+    printf("wrong number of args to set time\n");
     return -1;
   }
   uint8_t yr = atoi(argv[1]);
@@ -61,7 +69,7 @@ mon_set_rtc(int argc, char **argv){
   uint8_t sc = atoi(argv[7]);
 
   if(i2c_rtc_set_time(sc,mn,hr,dw,dt,mo,yr)!=0)
-    print("error setting RTC\n");
+    printf("error setting RTC\n");
   return 0;
 }
 
@@ -70,7 +78,7 @@ mon_get_rtc(int argc, char **argv){
   //char buf [30];
   //uint32_t val;
   //  val = i2c_rtc_get_time();
-  print("TODO: reading RTC");
+  printf("TODO: reading RTC");
   //sprintf(buf,"%lu\n",val);
   //udi_cdc_write_buf(&buf,strlen(buf));
   return 0;
@@ -95,6 +103,38 @@ mon_relay_toggle(int argc, char **argv){
 }
 
 /***** Core commands ****/
+void core_process_wifi_data(void){
+  char data[100];
+  int chan_num, data_size;
+  //match against the data
+  sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, data);
+  printf("Got [%d] bytes on channel [%d]: %s\n",
+	 data_size, chan_num, data);
+  if(strstr(data,"relay_on")==data){
+    mon_relay_on(0,NULL);
+  }
+  if(strstr(data,"relay_off")==data){
+    mon_relay_off(0,NULL);
+  }
+  else{
+    printf("unknown command: %s\n",data);
+  }
+  //clear the server buffer
+  memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+}
+
+void core_wifi_link(void){
+  printf("linked!\n");
+  //clear the server buffer
+  memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+}
+
+void core_wifi_unlink(void){
+  printf("unlinked\n");
+  //clear the server buffer
+  memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+}
+
 void core_transmit_power_packet(power_pkt *wemo_pkt){
   int r, i, j;
   char tx_buffer[1100], content[500];
@@ -185,6 +225,24 @@ void core_log_power_data(power_sample *sample){
   }
 }
 
+void 
+core_log(const char* content){
+  //log to the SD Card
+  wemo_log(content);
+}
+
+void 
+core_usb_enable(uint8_t port, bool b_enable){
+  cmd_buf_idx=0;
+  memset(cmd_buf,0x0,CMDBUF_SIZE);
+  if(b_enable){
+    wemo_config.echo = true;
+    delay_ms(500);
+    printf("Wattsworth WEMO(R) Plug v1.0\n");
+    printf("> ");
+  } 
+}
+
 /***** Kernel monitor command interpreter *****/
 
 /****************
@@ -192,41 +250,51 @@ void core_log_power_data(power_sample *sample){
  * Uses a tick to schedule operations
  *****************/
 uint8_t sys_tick=0;
+bool wifi_on = false; 
 
 void monitor(void){
-  //User PWM for system tick
-  pmc_enable_periph_clk(ID_PWM);
-  pwm_channel_disable(PWM, 0);
-  pwm_clock_t clock_setting = {
-    .ul_clka = 1000, //1 kHz
-    .ul_clkb = 0, //not used
-    .ul_mck = sysclk_get_cpu_hz()
-  };
-  pwm_init(PWM, &clock_setting);
-  //turn on channel 0
-  pwm_channel_t channel = {
-    .channel = 0,
-    .ul_duty = 0,
-    .ul_period = 5000, //sample every 5 seconds
-    .ul_prescaler = PWM_CMR_CPRE_CLKA,
-    .polarity = PWM_HIGH,
-  };
-  pwm_channel_init(PWM, &channel);
-  //enable interrupts on overflow
-  pwm_channel_enable_interrupt(PWM,0,0);
-  pwm_channel_enable(PWM,0);
-  NVIC_EnableIRQ(PWM_IRQn);
-
+  char buf[100];
   //initialize the power packet buffers
   tx_pkt = &power_pkts[0];
   cur_pkt = &power_pkts[1];
   //both are empty
   tx_pkt->status = POWER_PKT_EMPTY;
   cur_pkt->status = POWER_PKT_EMPTY;
+  //print the time for debugging
+  rtc_get_time_str(buf);
+  printf(buf); printf("\n");
+  //initialize runtime configs
+  wemo_config.echo = false;
+  //check if we are on USB
+  if(gpio_pin_is_high(VBUS_PIN)){
+    rgb_led_set(0,30,200); //blue light
+    //don't use WiFi b/c we don't have the power
+    wifi_on=false;
+  }
+  //check if reset is pressed
+  if(gpio_pin_is_low(BUTTON_PIN)){
+    //erase the config
+    //TODO
+    //spin until button is released
+    while(gpio_pin_is_low(BUTTON_PIN)){
+      rgb_led_set(255,255,0);
+      delay_ms(250);
+      rgb_led_set(0,0,0);
+      delay_ms(250);
+    }
+    rgb_led_set(255,255,0);
+  }
+  //setup WIFI
+  if(wifi_on){
+    while(wifi_init()!=0){
+      rgb_led_set(255,0,0);
+    }
+    //good to go! turn light green
+    rgb_led_set(0,125,30);
+  }
   while (1) {
-
-    if(tx_pkt->status==POWER_PKT_READY){
-      //try to send the packet 
+    //try to send a packet if we are using WiFi
+    if(tx_pkt->status==POWER_PKT_READY && wifi_on){
       core_transmit_power_packet(tx_pkt);
       if(tx_pkt->status==POWER_PKT_TX_FAIL){
 	printf("resetting wifi\n");
@@ -238,6 +306,7 @@ void monitor(void){
       //clear out the packet so we can start again
       tx_pkt->status=POWER_PKT_EMPTY;
     }
+    //check for commands from USB
     // don't worry about reading in commands right now
     //buf = readline();
     //if (buf != NULL)
@@ -248,65 +317,80 @@ void monitor(void){
 ISR(PWM_Handler)
 {
   sys_tick++;
-  gpio_toggle_pin(BUTTON_PIN);
   //check if there is a valid wemo sample
-  if(wemo_sample.valid==true){
+  if(wemo_sample.valid==true && wifi_on){
     core_log_power_data(&wemo_sample);
   }
   //take a wemo reading
-  server_read_power();
+  wemo_read_power();
   //clear the interrupt so we don't get stuck here
   pwm_channel_get_interrupt_status(PWM);  
 }
 
-ISR(TC1_Handler)
+
+
+
+void
+core_read_usb(uint8_t port)
 {
-  //  sys_tick++;
-  //gpio_toggle_pin(BUTTON_PIN);
-  //clear the interrupt so we don't get stuck here
-  tc_get_status(TC0,1);
+  uint8_t c;
+  //check for incoming USB data
+  while (udi_cdc_is_rx_ready()) {
+    c = udi_cdc_getc();
+    if(wemo_config.echo)
+      udi_cdc_putc(c);
+    if (c < 0) {
+      printf("read error: %d\n", c);
+      return;
+    } else if (c >= ' ' && cmd_buf_idx < CMDBUF_SIZE-1) {
+      cmd_buf[cmd_buf_idx++] = c;
+    } else if (c == '\n' || c == '\r') {
+      cmd_buf[cmd_buf_idx] = 0; //we have a complete command
+      runcmd(cmd_buf); //  run it
+      //clear the buffer
+      cmd_buf_idx = 0;
+      memset(cmd_buf,0x0,CMDBUF_SIZE);
+      if(wemo_config.echo)
+	printf("\r\n> "); //print the prompt
+    }
+  }
 }
-
-
-#define WHITESPACE "\t\r\n "
-#define MAXARGS 16
 
 static int
 runcmd(char *buf)
 {
-	int argc;
-	char *argv[MAXARGS];
-	uint16_t i;
-	char p_buf[40];
-	// Parse the command buffer into whitespace-separated arguments
-	argc = 0;
-	argv[argc] = 0;
-	while (1) {
-		// gobble whitespace
-		while (*buf && strchr(WHITESPACE, *buf))
-			*buf++ = 0;
-		if (*buf == 0)
-			break;
-
-		// save and scan past next arg
-		if (argc == MAXARGS-1) {
-			print("Too many arguments (max 16)\n");
-			return 0;
-		}
-		argv[argc++] = buf;
-		while (*buf && !strchr(WHITESPACE, *buf))
-			buf++;
-	}
-	argv[argc] = 0;
-
-	// Lookup and invoke the command
-	if (argc == 0)
-		return 0;
-	for (i = 0; i < NCOMMANDS; i++) {
-		if (strcmp(argv[0], commands[i].name) == 0)
-			return commands[i].func(argc, argv);
-	}
-	sprintf(p_buf,"Unknown command '%s'\n", argv[0]);
-	print(p_buf);
-	return 0;
+  int argc;
+  char *argv[MAXARGS];
+  uint16_t i;
+  // Parse the command buffer into whitespace-separated arguments
+  argc = 0;
+  argv[argc] = 0;
+  while (1) {
+    // gobble whitespace
+    while (*buf && strchr(WHITESPACE, *buf))
+      *buf++ = 0;
+    if (*buf == 0)
+      break;
+    
+    // save and scan past next arg
+    if (argc == MAXARGS-1) {
+      printf("Too many arguments (max 16)\n");
+      return 0;
+    }
+    argv[argc++] = buf;
+    while (*buf && !strchr(WHITESPACE, *buf))
+      buf++;
+  }
+  argv[argc] = 0;
+  
+  // Lookup and invoke the command
+  if (argc == 0)
+    return 0;
+  for (i = 0; i < NCOMMANDS; i++) {
+    if (strcmp(argv[0], commands[i].name) == 0){
+      return commands[i].func(argc, argv);
+    }
+  }
+  printf("Unknown command '%s'\n", argv[0]);
+  return 0;
 }
