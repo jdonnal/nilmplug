@@ -20,7 +20,7 @@ void relay_off(void);
 
 int main(void) {
 
-  ptr_put = (int (*)(void volatile*,char))&usb_putc;
+  ptr_put = (int (*)(void volatile*,char))&core_putc;
   setbuf(stdout, NULL);
 
   // Switch over to the crystal oscillator
@@ -34,7 +34,7 @@ int main(void) {
 
   usb_init();
   i2c_rtc_init();
-  wemo_fs_init(); //file system (config and logging)
+  fs_init(); //file system (config and logging)
   wemo_init();  //interacting with WEMO
   //initialize system tick with PWM
   pmc_enable_periph_clk(ID_PWM);

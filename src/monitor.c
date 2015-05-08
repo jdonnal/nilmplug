@@ -40,69 +40,173 @@ struct Command {
 };
 
 static struct Command commands[] = {
-	{ "hello", "test command", mon_test },
-	{ "set_rtc", "set RTC with unix timestamp", mon_set_rtc},
-	{ "get_rtc", "get RTC as unit timestamp", mon_get_rtc},
-	{ "relay_on", "turn relay on",mon_relay_on},
-	{ "relay_off", "turn relay off",mon_relay_off}
+  { "help","Display this list of commands", mon_help},
+  { "rtc", "get or set RTC", mon_rtc},
+  { "relay", "turn relay on",mon_relay},
+  { "echo", "turn echo on or off",mon_echo},
+  { "config", "get or set a config",mon_config}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
 int
-mon_test(int argc, char **argv){
-  printf("[monitor] hello world!\n");
+mon_help(int argc, char **argv)
+{
+  int i;
+  for (i = 0; i < NCOMMANDS; i++)
+    printf("%s - %s\n", commands[i].name, commands[i].desc);
   return 0;
 }
 
 int
-mon_set_rtc(int argc, char **argv){
-  if(argc!=8){
-    printf("wrong number of args to set time\n");
+mon_rtc(int argc, char **argv){
+  char buf[30];
+  uint8_t yr, dt, mo, dw, hr, mn, sc;
+  if(argc<2){
+    printf("wrong number of args to set time");
     return -1;
   }
-  uint8_t yr = atoi(argv[1]);
-  uint8_t mo = atoi(argv[2]);
-  uint8_t dt = atoi(argv[3]);
-  uint8_t dw = atoi(argv[4]);
-  uint8_t hr = atoi(argv[5]);
-  uint8_t mn = atoi(argv[6]);
-  uint8_t sc = atoi(argv[7]);
-
-  if(i2c_rtc_set_time(sc,mn,hr,dw,dt,mo,yr)!=0)
-    printf("error setting RTC\n");
+  if(strstr(argv[1],"get")==argv[1]){
+    rtc_get_time_str(buf);
+    printf("Time: %s",buf);
+  }
+  else if(strstr(argv[1],"set")==argv[1]){
+    if(argc!=9){
+      printf("please specify a time");
+      return -1;
+    }
+    yr = atoi(argv[2]);
+    mo = atoi(argv[3]);
+    dt = atoi(argv[4]);
+    dw = atoi(argv[5]);
+    hr = atoi(argv[6]);
+    mn = atoi(argv[7]);
+    sc = atoi(argv[8]);
+    if(i2c_rtc_set_time(sc,mn,hr,dw,dt,mo,yr)!=0)
+      printf("error setting RTC\n");
+    else{
+      rtc_get_time_str(buf);
+      printf("Set time to: %s",buf);
+    }
+  }
+  else{
+    printf("bad arguments to rtc");
+    return -1;
+  }
   return 0;
 }
 
 int
-mon_get_rtc(int argc, char **argv){
-  //char buf [30];
-  //uint32_t val;
-  //  val = i2c_rtc_get_time();
-  printf("TODO: reading RTC");
-  //sprintf(buf,"%lu\n",val);
-  //udi_cdc_write_buf(&buf,strlen(buf));
+mon_relay(int argc, char **argv){
+  if(argc!=2){
+    printf("wrong number of args to relay");
+    return -1;
+  }
+  if(strstr(argv[1],"on")==argv[1])
+    gpio_set_pin_high(RELAY_PIN);
+  else if(strstr(argv[1],"off")==argv[1])
+    gpio_set_pin_low(RELAY_PIN);
+  else if(strstr(argv[1],"toggle")==argv[1])
+    gpio_toggle_pin(RELAY_PIN);
+  else{
+    printf("bad argument to relay");
+    return -1;
+  }
+  return 0;
+}
+
+int 
+mon_echo(int argc, char **argv){
+  if(argc!=2){
+    printf("wrong number of args to relay\n");
+    return -1;
+  }
+  if(strstr(argv[1],"on")==argv[1])
+    wemo_config.echo = true;
+  else if(strstr(argv[1],"off")==argv[1])
+    wemo_config.echo = false;
+  else{
+    printf("bad argument to echo\n");
+    return -1;
+  }
   return 0;
 }
 
 int
-mon_relay_on(int argc, char **argv){
-  gpio_set_pin_high(RELAY_PIN);
+mon_config(int argc, char **argv){
+  int i;
+  //array of gettable configs and their values
+  #define GETTABLE_CONFIG_SIZE 7
+  char *gettable_configs[GETTABLE_CONFIG_SIZE]= {
+    "wifi_ssid","mgr_url","serial_number",
+    "ip_addr","nilm_id","nilm_ip","standalone"};
+  char *gettable_config_vals[GETTABLE_CONFIG_SIZE] = {
+    wemo_config.wifi_ssid, wemo_config.mgr_url, wemo_config.serial_number,
+    wemo_config.ip_addr, wemo_config.nilm_id, wemo_config.nilm_ip_addr,
+    wemo_config.str_standalone};
+  //array of settable configs and their values
+  #define SETTABLE_CONFIG_SIZE 6 
+  char *settable_configs[SETTABLE_CONFIG_SIZE]= {
+    "wifi_ssid","wifi_pwd","mgr_url","serial_number","nilm_id","standalone"};
+  char *settable_config_vals[SETTABLE_CONFIG_SIZE] = {
+    wemo_config.wifi_ssid, wemo_config.wifi_pwd, wemo_config.mgr_url, 
+    wemo_config.serial_number, wemo_config.nilm_id, wemo_config.str_standalone};
+
+  if(argc<2){
+    printf("wrong number of args to config\n");
+    return -1;
+  }
+  //--- request to get a config ----
+  if(strstr(argv[1],"get")==argv[1]){
+    if(argc!=3){
+      printf("specify a config to read");
+      return -1;
+    }
+    //find the matching config
+    for(i=0;i<GETTABLE_CONFIG_SIZE;i++){
+      if(strstr(argv[2],gettable_configs[i])==argv[2]){
+	printf(gettable_config_vals[i]);
+	return 0;
+      }
+    } //couldn't find config
+    printf("Error, config [%s] is not available",argv[2]);
+    return -1;
+  }
+  //--- request to set a config ----
+  if(strstr(argv[1],"set")==argv[1]){
+    if(argc!=4){
+      printf("specify a config and the value");
+    }
+    //find the matching config
+    for(i=0;i<SETTABLE_CONFIG_SIZE;i++){
+      if(strstr(argv[2],settable_configs[i])==argv[2]){
+	if(strlen(argv[3])>MAX_CONFIG_LEN){
+	  printf("requested value is too large to store");
+	  return -1;
+	}
+	//clear out the existing config
+	memset(settable_config_vals[i],0x0,MAX_CONFIG_LEN);
+	//save the config to the config struct
+	memcpy(settable_config_vals[i],argv[3],strlen(argv[3]));
+	//if echo is on, read back the result
+	if(wemo_config.echo){
+	  printf("Set [%s] to [%s]",argv[2],settable_config_vals[i]);
+	}
+	//save the new config
+	fs_write_config();
+	if(wemo_config.echo)
+	  printf("saved config");
+ 	return 0;
+      }
+    }
+  }
   return 0;
 }
-
-int
-mon_relay_off(int argc, char **argv){
-  gpio_set_pin_low(RELAY_PIN);
-  return 0;
-}
-
-int
-mon_relay_toggle(int argc, char **argv){
-  gpio_toggle_pin(RELAY_PIN);
-  return 0;
-}
-
 /***** Core commands ****/
+void core_putc(void* stream, char c){
+  if(wemo_config.echo)
+    udi_cdc_write_buf(&c,1);
+}
+
 void core_process_wifi_data(void){
   char data[100];
   int chan_num, data_size;
@@ -111,10 +215,10 @@ void core_process_wifi_data(void){
   printf("Got [%d] bytes on channel [%d]: %s\n",
 	 data_size, chan_num, data);
   if(strstr(data,"relay_on")==data){
-    mon_relay_on(0,NULL);
+    gpio_set_pin_high(RELAY_PIN);
   }
   if(strstr(data,"relay_off")==data){
-    mon_relay_off(0,NULL);
+    gpio_set_pin_low(RELAY_PIN);
   }
   else{
     printf("unknown command: %s\n",data);
@@ -164,7 +268,7 @@ void core_transmit_power_packet(power_pkt *wemo_pkt){
   //stick them in a json format
   memset(content,0x0,500); memset(tx_buffer,0x0,1100);
   sprintf(content,"{\"plug\":\"%s\",\"ip\":\"%s\",\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]}",
-	  "6CA2",wemo_config.wemo_ip,wemo_pkt->timestamp,vrms_str,
+	  wemo_config.serial_number,wemo_config.ip_addr,wemo_pkt->timestamp,vrms_str,
 	  irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
   sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
   //send the packet!
@@ -228,7 +332,7 @@ void core_log_power_data(power_sample *sample){
 void 
 core_log(const char* content){
   //log to the SD Card
-  wemo_log(content);
+  fs_log(content);
 }
 
 void 
@@ -239,6 +343,7 @@ core_usb_enable(uint8_t port, bool b_enable){
     wemo_config.echo = true;
     delay_ms(500);
     printf("Wattsworth WEMO(R) Plug v1.0\n");
+    printf("  [help] for more information\n");
     printf("> ");
   } 
 }
@@ -337,15 +442,20 @@ core_read_usb(uint8_t port)
   //check for incoming USB data
   while (udi_cdc_is_rx_ready()) {
     c = udi_cdc_getc();
-    if(wemo_config.echo)
-      udi_cdc_putc(c);
     if (c < 0) {
       printf("read error: %d\n", c);
       return;
+    } else if ((c == '\b' || c == '\x7f') && cmd_buf_idx > 0) {
+      if (wemo_config.echo)
+	udi_cdc_putc('\b');
+      cmd_buf_idx--;
     } else if (c >= ' ' && cmd_buf_idx < CMDBUF_SIZE-1) {
+      if(wemo_config.echo)
+	udi_cdc_putc(c);
       cmd_buf[cmd_buf_idx++] = c;
     } else if (c == '\n' || c == '\r') {
       cmd_buf[cmd_buf_idx] = 0; //we have a complete command
+      printf("\r\n");
       runcmd(cmd_buf); //  run it
       //clear the buffer
       cmd_buf_idx = 0;
@@ -391,6 +501,6 @@ runcmd(char *buf)
       return commands[i].func(argc, argv);
     }
   }
-  printf("Unknown command '%s'\n", argv[0]);
+  printf("Unknown command '%s'", argv[0]);
   return 0;
 }

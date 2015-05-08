@@ -107,15 +107,15 @@ int wifi_init(void){
     return 0;
   }
   //save the IP to our config
-  memset(wemo_config.wemo_ip,0,30);
+  memset(wemo_config.ip_addr,0,30);
   idx = (uint32_t)strstr(buf,"\r\n")-(uint32_t)buf;
-  memcpy(wemo_config.wemo_ip,buf,idx);
+  memcpy(wemo_config.ip_addr,buf,idx);
   //set the mode to multiple connections
   wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
   //start a server on port 1336
   wifi_send_cmd("AT+CIPSERVER=1,1336","OK",buf,BUF_SIZE,2);
   //log the event
-  sprintf(tx_buf,"Joined [%s] with IP [%s]",wemo_config.wifi_ssid,wemo_config.wemo_ip);
+  sprintf(tx_buf,"Joined [%s] with IP [%s]",wemo_config.wifi_ssid,wemo_config.ip_addr);
   printf("%s\n",tx_buf);
   core_log(tx_buf);
   return 0;

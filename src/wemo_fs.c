@@ -9,7 +9,7 @@
 FATFS fs;
 FIL log_file;
 
-uint8_t wemo_fs_init(void){
+uint8_t fs_init(void){
   Ctrl_status status;
   FRESULT res;
 
@@ -32,7 +32,7 @@ uint8_t wemo_fs_init(void){
     printf("[FAIL] res %d\r\n",res);
   }
   //load the configs
-  wemo_read_config();
+  fs_read_config();
   
   //open the log file
   res = f_open(&log_file, LOG_FILE,
@@ -46,69 +46,80 @@ uint8_t wemo_fs_init(void){
   return 0;
 }
 
-void wemo_read_config(void){
+void fs_read_config(void){
   FIL file;
   FRESULT res;
-  char buf[30]; //string buffer
-  char *config_tag; //holds what we're looking for in the config file
+  char buf[50]; //string buffer
+  int i;
+  #define NUM_CONFIGS 7
+  char *config_tags[NUM_CONFIGS] = {
+    "serial_number: ","wifi_ssid: ","wifi_pwd: ","standalone: ",
+    "mgr_url: ", "nilm_id: ", "nilm_ip_addr: "};
+  char *config_vals[NUM_CONFIGS] = {
+    wemo_config.serial_number, wemo_config.wifi_ssid, wemo_config.wifi_pwd,
+    wemo_config.str_standalone, wemo_config.mgr_url, wemo_config.nilm_id, 
+    wemo_config.nilm_ip_addr};
   //open the config file
   res = f_open(&file,CONFIG_FILE, FA_READ);
   if (res != FR_OK) {
-    printf("[FAIL] res %d\r\n", res);
+    printf("Error reading config file: res %d\r\n", res);
     return;
   }
-  //////////////////////////
-  //Load the config struct
-  //
-  // 1.) check the config tag is correct (order matters!)
-  // 2.) copy the value to the config struct- remove trailing newline
-  
-  // WiFi SSID
-  f_gets(buf,30,&file);
-  config_tag = "wifi_ssid: ";
-  if(strstr(buf,config_tag)!=buf)
-    goto config_error;
-  memcpy(wemo_config.wifi_ssid,&buf[strlen(config_tag)],
-	 strlen(buf)-strlen(config_tag)-1);
-  // WiFi Password
-  f_gets(buf,30,&file);
-  config_tag = "wifi_pwd: ";
-  if(strstr(buf,config_tag)!=buf)
-    goto config_error;
-  memcpy(wemo_config.wifi_pwd,&buf[strlen(config_tag)],
-	 strlen(buf)-strlen(config_tag)-1);
-  // Standlone mode (boolean)
-  f_gets(buf,30,&file);
-  config_tag = "standalone: ";
-  if(strstr(buf,config_tag)!=buf)
-    goto config_error;
-  if(strstr(buf,"false"))   //look for true or false
-    wemo_config.standalone=false;
-  else if(strstr(buf,"true"))
-    wemo_config.standalone=true;
+  // match the config tag against possible values,
+  // if a match, load the value into our config  
+  for(i=0;i<NUM_CONFIGS;i++){
+    f_gets(buf,50,&file);
+    if(strstr(buf,config_tags[i])==buf){
+      memcpy(config_vals[i],&buf[strlen(config_tags[i])],
+	     strlen(buf)-strlen(config_tags[i])-1); //extra 1 for \n
+      continue;
+    }
+    if(i==NUM_CONFIGS-1){ //didn't find the config value
+      sprintf(buf,"Error, missing config: [%s]",config_tags[i]);
+      core_log(buf);
+    }
+  }
+  //set the standalone config
+  if(strstr(wemo_config.str_standalone,"true")==
+     wemo_config.str_standalone)
+    wemo_config.standalone = true;
   else
-    goto config_error;
-  // Manager URL
-  f_gets(buf,30,&file);
-  config_tag = "mgr_url: ";
-  if(strstr(buf,config_tag)!=buf)
-    goto config_error;
-  memcpy(wemo_config.mgr_url,&buf[strlen(config_tag)],strlen(buf)-strlen(config_tag)-1);
-  // Wattsworth ID
-  f_gets(buf,30,&file);
-  config_tag = "wattsworth_id: ";
-  if(strstr(buf,config_tag)!=buf)
-    goto config_error;
-  memcpy(wemo_config.wattsworth_id,&buf[strlen(config_tag)],strlen(buf)-strlen(config_tag)-1);
- 
-  return; 
- config_error:
-  printf("Error loading config\n");
+    wemo_config.standalone = false;
   return;
 }
 
 
-void wemo_log(const char* content){
+
+void fs_write_config(void){
+  FIL file;
+  FRESULT res;
+  char buf[50]; //string buffer
+  int i;
+  UINT len;
+  #define NUM_CONFIGS 7
+  char *config_tags[NUM_CONFIGS] = {
+    "serial_number: ","wifi_ssid: ","wifi_pwd: ","standalone: ",
+    "mgr_url: ", "nilm_id: ", "nilm_ip_addr: "};
+  char *config_vals[NUM_CONFIGS] = {
+    wemo_config.serial_number, wemo_config.wifi_ssid, wemo_config.wifi_pwd,
+    wemo_config.str_standalone, wemo_config.mgr_url, wemo_config.nilm_id, 
+    wemo_config.nilm_ip_addr};
+  //open the config file
+  res = f_open(&file,CONFIG_FILE, FA_WRITE);
+  if (res != FR_OK) {
+    printf("Error opening config file: res %d\r\n", res);
+    return;
+  }
+  //write each config out
+  for(i=0;i<NUM_CONFIGS;i++){
+    sprintf(buf,"%s%s\n",config_tags[i],config_vals[i]);
+    f_write(&file,buf,strlen(buf),&len);
+  }
+  f_close(&file);
+}
+
+
+void fs_log(const char* content){
   char msg_buf[200];
   char ts_buf[30];
   UINT len;
@@ -124,9 +135,4 @@ void wemo_log(const char* content){
   //clean up memory
   //free(msg_buf);
   //free(ts_buf);
-}
-
-
-void wemo_write_config(void){
-  printf("saving config\n");
 }

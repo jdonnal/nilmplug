@@ -67,6 +67,3 @@ void usb_cdc_config(uint8_t port, usb_cdc_line_coding_t * cfg){
 #endif
 }
 
-void usb_putc(void* stream, char c){
-  udi_cdc_write_buf(&c,1);
-}

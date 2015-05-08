@@ -12,15 +12,18 @@ void monitor(void);
 
 //Wemo in-memory config datastructure
 //Read from file system on boot
+#define MAX_CONFIG_LEN 30
 typedef struct config_struct {
-  char wifi_ssid[20];     //the wireless network to connect to
-  char wifi_pwd[30];      //the network password (may be blank)
-  uint8_t standalone;     //TRUE: don't try to connect to a network
-  char mgr_url[30];       //URL of managment node (www.wattsworth.net)
-  char wattsworth_id[30]; //ID wattsworth owner (nilm9F59)
-  char wattsworth_ip[30]; //cached IP address of wattsworth owner
-  char wemo_ip[30];       //currently assigned IP address
-  uint8_t echo;           //runtime config, echo USB chars
+  char serial_number[MAX_CONFIG_LEN]; //the plug's serial number (plugABCD)
+  char wifi_ssid[MAX_CONFIG_LEN];     //the wireless network to connect to
+  char wifi_pwd[MAX_CONFIG_LEN];      //the network password (may be blank)
+  char str_standalone[MAX_CONFIG_LEN];//true/false: whether to connect to a network
+  char mgr_url[MAX_CONFIG_LEN];       //URL of managment node (www.wattsworth.net)
+  char nilm_id[MAX_CONFIG_LEN];       //ID NILM owner (nilm9F59)
+  char nilm_ip_addr[MAX_CONFIG_LEN];  //cached IP address of wattsworth owner
+  char ip_addr[MAX_CONFIG_LEN];       //runtime config, currently assigned IP address
+  uint8_t echo;                       //runtime config, echo USB chars
+  bool standalone;                    //runtime boolean value of str_standalone
 } config;
 
 extern config wemo_config;
@@ -29,12 +32,15 @@ extern config wemo_config;
 // these functions are meant to be called over
 // serial, they are just wrappers for core commands
 // firmware modules call the core commands directly
-int mon_test(int argc, char **argv);
-int mon_set_rtc(int argc, char **argv);
-int mon_get_rtc(int argc, char **argv);
-int mon_relay_on(int argc, char **argv);
-int mon_relay_off(int argc, char **argv);
-int mon_relay_toggle(int argc, char **argv);
+int mon_help(int argc, char **argv);
+int mon_rtc(int argc, char **argv);
+int mon_relay(int argc, char **argv);
+int mon_echo(int argc, char**argv);
+int mon_config(int argc, char**argv);
+
+//putc for stdout
+void core_putc(void* stream, char c);
+
 
 //Functions implementing core commands
 #define WIFI_RX_BUF_SIZE 300
