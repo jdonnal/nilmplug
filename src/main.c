@@ -57,6 +57,7 @@ int main(void) {
   //                enable interrupts on overflow
   pwm_channel_enable_interrupt(PWM,0,0);
   pwm_channel_enable(PWM,0);
+  NVIC_SetPriority(PWM_IRQn,3); //lowest priority
   NVIC_EnableIRQ(PWM_IRQn);
   //ready to go! enable interrupts
   cpu_irq_enable();

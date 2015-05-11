@@ -56,7 +56,7 @@ int wifi_init(void){
   TC0->TC_CHANNEL[0].TC_RA = 0;  // doesn't matter
   TC0->TC_CHANNEL[0].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
   NVIC_ClearPendingIRQ(TC0_IRQn);
-  NVIC_SetPriority(TC0_IRQn,0);
+  NVIC_SetPriority(TC0_IRQn,0);//highest priority
   NVIC_EnableIRQ(TC0_IRQn);
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
@@ -167,7 +167,7 @@ int wifi_send_data(int ch, const char* data){
   char cmd[100];
   int timeout = 2; //wait 2 seconds to transmit the data
   data_tx = true;
-  sprintf(cmd,"AT+CIPSEND=4,%d\r\n",strlen(data));
+  sprintf(cmd,"AT+CIPSEND=%d,%d\r\n",ch,strlen(data));
   data_tx_status=TX_PENDING;
   rx_wait=true;
   rx_buf_idx = 0;
@@ -215,6 +215,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete,
   rx_complete_str[strlen(resp_complete)+2]='\0';
   //enable RX interrupts
   usart_enable_interrupt(WIFI_UART, US_IER_RXRDY);
+  NVIC_SetPriority(WIFI_UART_IRQ,2);
   NVIC_EnableIRQ(WIFI_UART_IRQ);
   //write the command
   rx_wait=true; //we want this data returned in rx_buf
@@ -269,7 +270,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete,
   return rx_end-rx_start;
 }
 
-
+//Priority 0 (highest)
 ISR(TC0_Handler)
 {
   rx_wait = false;
@@ -277,6 +278,7 @@ ISR(TC0_Handler)
   tc_get_status(TC0,0);
 }
 
+//Priority 1 (middle)
 ISR(UART0_Handler)
 {
   uint8_t tmp, i;
@@ -343,6 +345,7 @@ ISR(UART0_Handler)
       //check for data
       if(strstr(&wifi_rx_buf[wifi_rx_buf_idx-4],"OK\r\n")==
 	 &wifi_rx_buf[wifi_rx_buf_idx-4]){
+	printf("processing %s",wifi_rx_buf);
 	core_process_wifi_data();
 	wifi_rx_buf_idx=0;
 	return;

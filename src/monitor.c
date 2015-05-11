@@ -31,6 +31,14 @@ power_pkt power_pkts[2];
 power_pkt *cur_pkt, *tx_pkt;
 //data structure for wemo configuration
 config wemo_config;
+//buffer and flag for transmitting responses to server requests
+//  responses to server requests have to occur in the main loop
+//  because the server response routine executes in interrupt context
+//  the main loop checks if the pending_tx flag is set and if it is,
+//  tx_buffer is send out channel 4 and the socket is closed
+#define TX_BUF_SIZE 50
+bool tx_pending;
+char tx_buffer[TX_BUF_SIZE];
 
 struct Command {
 	const char *name;
@@ -144,12 +152,14 @@ mon_config(int argc, char **argv){
     wemo_config.ip_addr, wemo_config.nilm_id, wemo_config.nilm_ip_addr,
     wemo_config.str_standalone};
   //array of settable configs and their values
-  #define SETTABLE_CONFIG_SIZE 6 
+  #define SETTABLE_CONFIG_SIZE 7 
   char *settable_configs[SETTABLE_CONFIG_SIZE]= {
-    "wifi_ssid","wifi_pwd","mgr_url","serial_number","nilm_id","standalone"};
+    "wifi_ssid","wifi_pwd","mgr_url","serial_number",
+    "nilm_id","standalone","nilm_ip"};
   char *settable_config_vals[SETTABLE_CONFIG_SIZE] = {
     wemo_config.wifi_ssid, wemo_config.wifi_pwd, wemo_config.mgr_url, 
-    wemo_config.serial_number, wemo_config.nilm_id, wemo_config.str_standalone};
+    wemo_config.serial_number, wemo_config.nilm_id, 
+    wemo_config.str_standalone, wemo_config.nilm_ip_addr};
 
   if(argc<2){
     printf("wrong number of args to config\n");
@@ -213,16 +223,24 @@ void core_process_wifi_data(void){
   //match against the data
   sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, data);
   printf("Got [%d] bytes on channel [%d]: %s\n",
-	 data_size, chan_num, data);
+    data_size, chan_num, data);
   if(strstr(data,"relay_on")==data){
     gpio_set_pin_high(RELAY_PIN);
+    printf("relay ON\n");
   }
-  if(strstr(data,"relay_off")==data){
+  else if(strstr(data,"relay_off")==data){
     gpio_set_pin_low(RELAY_PIN);
+    printf("relay OFF\n");
   }
   else{
     printf("unknown command: %s\n",data);
+    wifi_send_data(0,"error: unknown command");
+    return;
   }
+  //return "OK" to indicate success
+  memset(tx_buffer,0x0,TX_BUF_SIZE);
+  memcpy(tx_buffer,"OK",strlen("OK"));
+  tx_pending=true;
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }
@@ -270,9 +288,9 @@ void core_transmit_power_packet(power_pkt *wemo_pkt){
   sprintf(content,"{\"plug\":\"%s\",\"ip\":\"%s\",\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]}",
 	  wemo_config.serial_number,wemo_config.ip_addr,wemo_pkt->timestamp,vrms_str,
 	  irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
-  sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: 18.111.15.238\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
+  sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: NILM\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
   //send the packet!
-  r = wifi_transmit("18.111.15.238",80,tx_buffer);
+  r = wifi_transmit(wemo_config.nilm_ip_addr,80,tx_buffer);
   if(r==TX_SUCCESS){
     wemo_pkt->status = POWER_PKT_EMPTY;
   } else {
@@ -355,7 +373,7 @@ core_usb_enable(uint8_t port, bool b_enable){
  * Uses a tick to schedule operations
  *****************/
 uint8_t sys_tick=0;
-bool wifi_on = false; 
+bool wifi_on = true; 
 
 void monitor(void){
 
@@ -372,7 +390,7 @@ void monitor(void){
   if(gpio_pin_is_high(VBUS_PIN)){
     rgb_led_set(0,30,200); //blue light
     //don't use WiFi b/c we don't have the power
-    wifi_on=false;
+    //    wifi_on=false;
   }
   //check if reset is pressed
   if(gpio_pin_is_low(BUTTON_PIN)){
@@ -395,6 +413,9 @@ void monitor(void){
     //good to go! turn light green
     rgb_led_set(0,125,30);
   }
+  //initialize the tx buffer and flag
+  tx_pending = false;
+  memset(tx_buffer,0x0,TX_BUF_SIZE);
   while (1) {
     //try to send a packet if we are using WiFi
     if(tx_pkt->status==POWER_PKT_READY && wifi_on){
@@ -409,9 +430,18 @@ void monitor(void){
       //clear out the packet so we can start again
       tx_pkt->status=POWER_PKT_EMPTY;
     }
+    //check for pending tx requests
+    if(tx_pending){
+      wifi_send_data(0,tx_buffer);
+      printf("transmited pending data\n");
+      //now close the socket
+      //wifi_send_cmd("AT+CIPCLOSE=0","Unlink",tx_buffer,TX_BUF_SIZE,1);
+      tx_pending=false;
+    }
   }
 }
 
+//Priority 3 (lowest)
 ISR(PWM_Handler)
 {
   sys_tick++;
