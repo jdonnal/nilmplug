@@ -25,13 +25,10 @@ int main(void) {
 
   // Switch over to the crystal oscillator
   sysclk_init();
-  // Disable the built-in watchdog timer
-  wdt_disable(WDT);
-  //initialize peripherals
+  //initialize GPIO
   io_init();
   rgb_led_init();
   rgb_led_set(242,222,68);
-
   usb_init();
   i2c_rtc_init();
   fs_init(); //file system (config and logging)
@@ -59,8 +56,27 @@ int main(void) {
   pwm_channel_enable(PWM,0);
   NVIC_SetPriority(PWM_IRQn,3); //lowest priority
   NVIC_EnableIRQ(PWM_IRQn);
+  /* Configure WDT to trigger an interrupt (or reset). */
+  uint32_t wdt_mode = //WDT_MR_WDFIEN |  /* Enable WDT fault interrupt. */
+    WDT_MR_WDRSTEN   |  /* WDT fault triggers resets */
+    WDT_MR_WDRPROC   |  /* WDT fault resets processor only. */
+    WDT_MR_WDDBGHLT  |  /* WDT stops in debug state. */
+    WDT_MR_WDIDLEHLT;   /* WDT stops in idle state. */
+  uint32_t timeout_value = wdt_get_timeout_value(WDT_PERIOD * 1000,
+					32768);
+  /* Initialize WDT with the given parameters. */
+  wdt_init(WDT, wdt_mode, timeout_value, timeout_value);
+  //check if previous reset was due to watchdog
+  uint32_t info = rstc_get_status(RSTC);
+  if(info & RSTC_WATCHDOG_RESET){
+    printf("watchdog reset!\n");
+    core_log("watchdog reset");
+  }
+  //***********DISABLE WDT*********
+  wdt_disable(WDT);
   //ready to go! enable interrupts
   cpu_irq_enable();
+
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");
@@ -75,7 +91,16 @@ void io_init(void){
   pmc_enable_periph_clk(ID_PIOB);
   
   //Relay
-  gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
+  //restore relay state from backup register
+  if(gpbr_read(GPBR_RELAY_STATE)==1){
+    printf("relay starting on\n");
+    gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_1);
+  }
+  else{
+    printf("relay starting off\n");
+    gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
+  }
+
   //VBUS
   gpio_configure_pin(VBUS_PIN, PIO_INPUT);
   //Button

@@ -5,6 +5,11 @@
 
 void monitor(void);
 
+//general purpose backup regs and wdt
+#define WDT_PERIOD       15000 //~8 secs
+
+#define GPBR_RELAY_STATE GPBR4
+
 //board pins
 #define RELAY_PIN  PIO_PA13_IDX
 #define BUTTON_PIN PIO_PB14_IDX
@@ -43,12 +48,14 @@ void core_putc(void* stream, char c);
 
 
 //Functions implementing core commands
-#define WIFI_RX_BUF_SIZE 300
+#define WIFI_RX_BUF_SIZE 500
 char wifi_rx_buf [WIFI_RX_BUF_SIZE];
+uint8_t wifi_rx_buf_full; //flag to notify main loop we have data
+
 //   Incoming data from WiFi
-void core_process_wifi_data(void);
-void core_wifi_link(void);
-void core_wifi_unlink(void);
+void core_process_wifi_data(void); // main loop
+void core_wifi_link(void);         // interrupt ctx
+void core_wifi_unlink(void);       // interrupt ctx
 //   Outgoing data to WiFi
 void core_log_power_data(power_sample *data);
 void core_transmit_power_packets(void);

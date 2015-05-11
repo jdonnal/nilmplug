@@ -23,6 +23,7 @@
 #include <delay.h>
 #include <serial.h>
 #include <pwm.h>
+#include <gpbr.h>
 
 // From module: High Speed Multimedia Card Interface
 #include <hsmci.h>

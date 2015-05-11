@@ -14,5 +14,8 @@ int wifi_init(void);
 
 int wifi_server_start(void);
 int wifi_transmit(char *url, int port, char *data);
+int wifi_send_cmd(const char* cmd, const char* resp_complete, char* resp, 
+		  uint32_t maxlen, int timeout);
+
 int wifi_send_data(int ch, const char* data);
 #endif

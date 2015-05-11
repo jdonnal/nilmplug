@@ -103,18 +103,32 @@ mon_rtc(int argc, char **argv){
   return 0;
 }
 
+//set the relay and store the new state in 
+//the backup register in case of software reset
 int
 mon_relay(int argc, char **argv){
+  int state;
   if(argc!=2){
     printf("wrong number of args to relay\n");
     return -1;
   }
-  if(strstr(argv[1],"on")==argv[1])
+  if(strstr(argv[1],"on")==argv[1]){
     gpio_set_pin_high(RELAY_PIN);
-  else if(strstr(argv[1],"off")==argv[1])
+    gpbr_write(GPBR_RELAY_STATE,1);
+  }
+  else if(strstr(argv[1],"off")==argv[1]){
     gpio_set_pin_low(RELAY_PIN);
-  else if(strstr(argv[1],"toggle")==argv[1])
+    gpbr_write(GPBR_RELAY_STATE,0);
+  }
+  else if(strstr(argv[1],"toggle")==argv[1]){
+    state = gpbr_read(GPBR_RELAY_STATE);
     gpio_toggle_pin(RELAY_PIN);
+    if(state==0)
+      state = 1;
+    else
+      state = 0;
+    gpbr_write(GPBR_RELAY_STATE,state);
+  }
   else{
     printf("bad argument to relay\n");
     return -1;
@@ -224,6 +238,16 @@ void core_process_wifi_data(void){
   sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, data);
   printf("Got [%d] bytes on channel [%d]: %s\n",
     data_size, chan_num, data);
+  //discard responses from the NILM to power logging packets
+  if(chan_num==4){
+    printf("Discarding packet from port 4\n");
+    //clear the server buffer
+    memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+    //close the socket
+    wifi_send_cmd("AT+CIPCLOSE=4","Unlink",data,100,1);
+    return;
+  }
+  //this data must be inbound to the server port, process the command
   if(strstr(data,"relay_on")==data){
     gpio_set_pin_high(RELAY_PIN);
     printf("relay ON\n");
@@ -237,12 +261,14 @@ void core_process_wifi_data(void){
     wifi_send_data(0,"error: unknown command");
     return;
   }
-  //return "OK" to indicate success
-  memset(tx_buffer,0x0,TX_BUF_SIZE);
-  memcpy(tx_buffer,"OK",strlen("OK"));
-  tx_pending=true;
+
+  //  memset(tx_buffer,0x0,TX_BUF_SIZE);
+  //memcpy(tx_buffer,"OK",strlen("OK"));
+  //tx_pending=true;
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+  //return "OK" to indicate success
+  wifi_send_data(0,"OK");
 }
 
 void core_wifi_link(void){
@@ -376,6 +402,7 @@ uint8_t sys_tick=0;
 bool wifi_on = true; 
 
 void monitor(void){
+  uint32_t prev_tick=0;
 
   //initialize the power packet buffers
   tx_pkt = &power_pkts[0];
@@ -413,9 +440,9 @@ void monitor(void){
     //good to go! turn light green
     rgb_led_set(0,125,30);
   }
-  //initialize the tx buffer and flag
-  tx_pending = false;
-  memset(tx_buffer,0x0,TX_BUF_SIZE);
+  //initialize the wifi_rx buffer and flag
+  wifi_rx_buf_full = false;
+  memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
   while (1) {
     //try to send a packet if we are using WiFi
     if(tx_pkt->status==POWER_PKT_READY && wifi_on){
@@ -430,15 +457,18 @@ void monitor(void){
       //clear out the packet so we can start again
       tx_pkt->status=POWER_PKT_EMPTY;
     }
-    //check for pending tx requests
-    if(tx_pending){
-      wifi_send_data(0,tx_buffer);
-      printf("transmited pending data\n");
-      //now close the socket
-      //wifi_send_cmd("AT+CIPCLOSE=0","Unlink",tx_buffer,TX_BUF_SIZE,1);
-      tx_pending=false;
+    //check for pending data from the Internet
+    if(wifi_rx_buf_full){
+      core_process_wifi_data();
+      wifi_rx_buf_full=false;
+    }
+    //reset watchdog
+    if(sys_tick!=prev_tick){
+      prev_tick=sys_tick;
+      wdt_restart(WDT);
     }
   }
+    
 }
 
 //Priority 3 (lowest)

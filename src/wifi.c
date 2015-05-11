@@ -17,8 +17,6 @@ bool data_tx = false; //we are transmitting data
 //index into incoming data buffer (data from another server)
 uint32_t wifi_rx_buf_idx = 0;
 
-int wifi_send_cmd(const char* cmd, const char* resp_complete, char* resp, 
-		  uint32_t maxlen, int timeout);
 int wifi_send_data(int ch, const char* data);
 
 int wifi_init(void){
@@ -148,8 +146,9 @@ int wifi_transmit(char *url, int port, char *data){
     printf("error transmitting data: %d\n",data_tx_status);
     return -1;
   }
-  //close the connection
-  wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,100,1);
+  //connection is closed *after* we receive the server's response
+  //this is processed by the core and we discard the response
+  //wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,100,1);
 
   return 0; //success!
 }
@@ -184,7 +183,8 @@ int wifi_send_data(int ch, const char* data){
     rx_wait=true; //reset the wait flag
     while(rx_wait && data_tx_status!=TX_SUCCESS);
     tc_stop(TC0,0);
-    //the success flag is set *after* we receive the server's response
+    //the success flag is set *before* we receive the server's response
+    //core_process_wifi_data receives the response but discards it 
     if(data_tx_status==TX_SUCCESS){
       data_tx_status=TX_IDLE;
       rx_wait = false;
@@ -305,25 +305,30 @@ ISR(UART0_Handler)
     }
   } else if(rx_wait && data_tx_status==TX_PENDING){
     //we are transmitting, no need to capture response,
-    //after transmission we receive SEND OK\r\n and after
-    //response we receive \r\nOK\r\n, we only expect 1 packet so
-    //just wait for \r\nOK\r\n, use a 6 char circular buffer
-    if(rx_buf_idx>5){
-      for(i=0;i<5;i++)
+    //after transmission we receive SEND OK\r\n, responses
+    //are captured by wifi_rx_buf and processed by the core
+    //just wait for SEND OK\r\n, use a 9 char circular buffer
+    if(rx_buf_idx>8){
+      for(i=0;i<8;i++)
 	rx_buf[i]=rx_buf[i+1];
-      rx_buf[5]=tmp;
-      if(strstr((char*)rx_buf,"\r\nOK\r\n")==(char*)rx_buf){
+      rx_buf[8]=tmp;
+      if(strstr((char*)rx_buf,"SEND OK\r\n")==(char*)rx_buf){
+	printf("Got SEND OK\n");
 	data_tx_status=TX_SUCCESS;
       }
     } else{
       rx_buf[rx_buf_idx++]=tmp;
     }
-  }else { 
+  }else { //data_tx_status == TX_IDLE
     //this is unsollicted data, incoming from Internet,
     //process into wifi_rx_buf and pass off to the the core 
     //when the reception is complete
+    if(wifi_rx_buf_full){
+      printf("error, wifi_rx_buf must be processed by main loop!\n");
+      return; //ERROR!!!
+    }
     if(wifi_rx_buf_idx>=WIFI_RX_BUF_SIZE){
-      printf("error!\n");
+      printf("too much data, wifi_rx_buf full!\n");
       return; //ERROR!!!!
     }
     wifi_rx_buf[wifi_rx_buf_idx++]=(char)tmp;
@@ -343,10 +348,13 @@ ISR(UART0_Handler)
 	return;
       }
       //check for data
-      if(strstr(&wifi_rx_buf[wifi_rx_buf_idx-4],"OK\r\n")==
-	 &wifi_rx_buf[wifi_rx_buf_idx-4]){
-	printf("processing %s",wifi_rx_buf);
-	core_process_wifi_data();
+      if(strstr(&wifi_rx_buf[wifi_rx_buf_idx-6],"\r\nOK\r\n")==
+	 &wifi_rx_buf[wifi_rx_buf_idx-6]){
+	//data is ready for processing, set flag so main loop 
+	//runs core_process_wifi_data
+	printf("queueing %s",wifi_rx_buf);
+	wifi_rx_buf_full=true;
+	//	core_process_wifi_data();
 	wifi_rx_buf_idx=0;
 	return;
       }
