@@ -1,0 +1,7 @@
+serial_number: 
+wifi_ssid: MIT
+wifi_pwd: 
+standalone: false
+mgr_url: www.wattsworth.net
+nilm_id: 
+nilm_ip_addr: 

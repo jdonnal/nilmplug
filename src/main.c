@@ -25,6 +25,8 @@ int main(void) {
 
   // Switch over to the crystal oscillator
   sysclk_init();
+  //***********DISABLE WDT*********
+  wdt_disable(WDT);
   //initialize GPIO
   io_init();
   rgb_led_init();
@@ -56,15 +58,16 @@ int main(void) {
   pwm_channel_enable(PWM,0);
   NVIC_SetPriority(PWM_IRQn,3); //lowest priority
   NVIC_EnableIRQ(PWM_IRQn);
-  /* Configure WDT to trigger an interrupt (or reset). */
-  uint32_t wdt_mode = //WDT_MR_WDFIEN |  /* Enable WDT fault interrupt. */
-    WDT_MR_WDRSTEN   |  /* WDT fault triggers resets */
-    WDT_MR_WDRPROC   |  /* WDT fault resets processor only. */
-    WDT_MR_WDDBGHLT  |  /* WDT stops in debug state. */
-    WDT_MR_WDIDLEHLT;   /* WDT stops in idle state. */
+  /*    ----NOT USING WDT-----
+  // Configure WDT to trigger an interrupt (or reset). 
+  uint32_t wdt_mode = 
+    WDT_MR_WDRSTEN   |  // WDT fault triggers resets 
+    WDT_MR_WDRPROC   |  // WDT fault resets processor only. 
+    WDT_MR_WDDBGHLT  |  // WDT stops in debug state. 
+    WDT_MR_WDIDLEHLT;   // WDT stops in idle state. 
   uint32_t timeout_value = wdt_get_timeout_value(WDT_PERIOD * 1000,
 					32768);
-  /* Initialize WDT with the given parameters. */
+  // Initialize WDT with the given parameters. 
   wdt_init(WDT, wdt_mode, timeout_value, timeout_value);
   //check if previous reset was due to watchdog
   uint32_t info = rstc_get_status(RSTC);
@@ -72,8 +75,7 @@ int main(void) {
     printf("watchdog reset!\n");
     core_log("watchdog reset");
   }
-  //***********DISABLE WDT*********
-  wdt_disable(WDT);
+  -----------------     */
   //ready to go! enable interrupts
   cpu_irq_enable();
 

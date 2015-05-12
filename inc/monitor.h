@@ -40,9 +40,9 @@ extern config wemo_config;
 int mon_help(int argc, char **argv);
 int mon_rtc(int argc, char **argv);
 int mon_relay(int argc, char **argv);
-int mon_echo(int argc, char**argv);
-int mon_config(int argc, char**argv);
-
+int mon_echo(int argc, char **argv);
+int mon_config(int argc, char **argv);
+int mon_log(int argc, char **argv);
 //putc for stdout
 void core_putc(void* stream, char c);
 

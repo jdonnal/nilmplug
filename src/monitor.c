@@ -52,7 +52,8 @@ static struct Command commands[] = {
   { "rtc", "get or set RTC", mon_rtc},
   { "relay", "turn relay on",mon_relay},
   { "echo", "turn echo on or off",mon_echo},
-  { "config", "get or set a config",mon_config}
+  { "config", "get or set a config",mon_config},
+  { "log", "read or clear the log", mon_log}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -224,6 +225,54 @@ mon_config(int argc, char **argv){
       }
     }
   }
+  return 0;
+}
+
+int
+mon_log(int argc, char **argv){
+  FIL fil;
+  char line[100];
+  FRESULT fr; 
+
+  if(argc!=2){
+    printf("specify [read] or [erase]\n");
+    return -1;
+  }
+  if(strstr(argv[1],"read")==argv[1]){
+    //print the log out to STDOUT
+    fr = f_open(&fil, LOG_FILE, FA_READ);
+    if(fr){
+      printf("error reading log: %d\n",(int)fr);
+      return -1;
+    }
+    //    cpu_irq_disable();
+    while(f_gets(line, sizeof(line), &fil)){
+      printf("%s",line);
+      //      delay_ms(100);
+    }
+    
+    //    cpu_irq_enable();
+    f_close(&fil);
+    return 0;
+  }
+  else if(strstr(argv[1],"erase")==argv[1]){
+    fr = f_open(&fil, LOG_FILE, FA_WRITE);
+    if(fr){
+      printf("error erasing log: %d\n", (int)fr);
+      return -1;
+    }
+    f_lseek(&fil,0);
+    f_truncate(&fil);
+    f_close(&fil);
+    if(wemo_config.echo)
+      printf("erased log\n");
+    return 0;
+  }
+  else{
+    printf("specify [read] or [erase]\n");
+    return -1;
+  }
+  //shouldn't get here
   return 0;
 }
 /***** Core commands ****/
@@ -449,6 +498,7 @@ void monitor(void){
       core_transmit_power_packet(tx_pkt);
       if(tx_pkt->status==POWER_PKT_TX_FAIL){
 	printf("resetting wifi\n");
+	core_log("resetting wifi");
 	wifi_init();
 	//try again (only time for 2 tries)
 	tx_pkt->status=POWER_PKT_READY;

@@ -7,7 +7,6 @@
 
 
 FATFS fs;
-FIL log_file;
 
 uint8_t fs_init(void){
   Ctrl_status status;
@@ -34,15 +33,6 @@ uint8_t fs_init(void){
   //load the configs
   fs_read_config();
   
-  //open the log file
-  res = f_open(&log_file, LOG_FILE,
-	       FA_OPEN_ALWAYS | FA_WRITE);
-  /* Move to end of the file to append data */
-  res = f_lseek(&log_file, f_size(&log_file));
-  if (res != FR_OK) {
-    printf("[FAIL] res %d\r\n", res);
-    return false;
-  }
   return 0;
 }
 
@@ -123,16 +113,22 @@ void fs_log(const char* content){
   char msg_buf[200];
   char ts_buf[30];
   UINT len;
-  //  msg_buf = (char*)malloc(strlen(content)+30);
+  FIL log_file;
+  FRESULT res;
+
+  //open the log file
+  res = f_open(&log_file, LOG_FILE,
+	       FA_OPEN_ALWAYS | FA_WRITE);
+  /* Move to end of the file to append data */
+  res = f_lseek(&log_file, f_size(&log_file));
+  if (res != FR_OK) {
+    printf("[FAIL] res %d\r\n", res);
+  }
   memset(msg_buf,0x0,strlen(content)+30);
-  //  ts_buf = (char*)malloc(30);
   memset(ts_buf,0x0,30);
   rtc_get_time_str(ts_buf);
   sprintf(msg_buf,"[%s]: %s\n",ts_buf,content);
   f_write(&log_file,msg_buf,strlen(msg_buf),&len);
-  //always sync log entries
-  f_sync(&log_file);
-  //clean up memory
-  //free(msg_buf);
-  //free(ts_buf);
+  //close the log file
+  f_close(&log_file);
 }
