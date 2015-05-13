@@ -6,8 +6,6 @@
 #include "asf.h"
 #include "debug.h"
 #include "string.h"
-#include "iv_adc.h"
-#include "iv_dacc.h"
 #include "usb.h"
 #include "types.h"
 #include "monitor.h"
@@ -471,10 +469,9 @@ void core_log_power_data(power_sample *sample){
 void
 core_get_nilm_ip_addr(void){
   char buffer[200];
-  int r;
   sprintf(buffer,"GET /nilm/get_ip?serial_number=%s HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: %s\r\nAccept:*/*\r\n\r\n",
 	  wemo_config.serial_number,wemo_config.mgr_url);
-  r = wifi_transmit(wemo_config.mgr_url,80,buffer);
+  wifi_transmit(wemo_config.mgr_url,80,buffer);
   tx_callback = &core_get_nilm_ip_addr_cb;
 }
 //callback function

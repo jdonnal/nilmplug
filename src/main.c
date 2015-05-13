@@ -27,6 +27,8 @@ int main(void) {
   sysclk_init();
   //***********DISABLE WDT*********
   wdt_disable(WDT);
+  //initialize memory system
+  membag_init();
   //initialize GPIO
   io_init();
   rgb_led_init();

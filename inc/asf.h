@@ -10,6 +10,8 @@
 #include <compiler.h>
 #include <status_codes.h>
 #include <board.h>
+
+// Drivers
 #include <sysclk.h>
 #include <gpio.h>
 #include <rstc.h>
@@ -18,13 +20,13 @@
 #include <dacc.h>
 #include <adc.h>
 #include <tc.h>
-#include <fifo.h>
 #include <twi.h>
 #include <delay.h>
 #include <serial.h>
 #include <pwm.h>
 #include <gpbr.h>
 #include <efc.h>
+
 
 // From module: High Speed Multimedia Card Interface
 #include <hsmci.h>
@@ -51,5 +53,8 @@
 // From module: USB Device Stack Core (Common API)
 #include <udc.h>
 #include <udd.h>
+
+// From module: membag
+#include <membag.h>
 
 #endif // ASF_H
