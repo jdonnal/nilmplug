@@ -129,7 +129,12 @@ int wifi_transmit(char *url, int port, char *data){
   //open a TCP connection on channel 4
   sprintf(cmd,"AT+CIPSTART=4,\"TCP\",\"%s\",%d",
 	  url,port);
-  wifi_send_cmd(cmd,"Linked",buf,100,2);
+  wifi_send_cmd(cmd,"Linked",buf,100,5);
+  //check if we are able to connect to the NILM
+  if(strstr(buf,"ERROR\r\nUnlink")==buf){
+    printf("can't connect to NILM\n");
+    return TX_BAD_DEST_IP;
+  }
   //if we are still connected, close and reopen socket
   if(strstr(buf,connected_str)==buf){
     wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,100,1);
@@ -139,18 +144,18 @@ int wifi_transmit(char *url, int port, char *data){
   //check for successful link
   if(strstr(buf,success_str)!=buf){
     printf("error, setting up link\n");
-    return -1;
+    return TX_ERROR;
   }
   //send the data
   if(wifi_send_data(4,data)!=0){
     printf("error transmitting data: %d\n",data_tx_status);
-    return -1;
+    return TX_ERROR;
   }
   //connection is closed *after* we receive the server's response
   //this is processed by the core and we discard the response
   //wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,100,1);
 
-  return 0; //success!
+  return TX_SUCCESS; //success!
 }
 
 //****OBSOLETE****
@@ -352,7 +357,6 @@ ISR(UART0_Handler)
 	 &wifi_rx_buf[wifi_rx_buf_idx-6]){
 	//data is ready for processing, set flag so main loop 
 	//runs core_process_wifi_data
-	printf("queueing %s",wifi_rx_buf);
 	wifi_rx_buf_full=true;
 	//	core_process_wifi_data();
 	wifi_rx_buf_idx=0;

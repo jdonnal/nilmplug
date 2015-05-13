@@ -9,6 +9,7 @@
 #define TX_SUCCESS  0
 #define TX_ERROR   -1
 #define TX_TIMEOUT -2
+#define TX_BAD_DEST_IP -3
 
 int wifi_init(void);
 

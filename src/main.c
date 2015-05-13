@@ -22,7 +22,7 @@ int main(void) {
 
   ptr_put = (int (*)(void volatile*,char))&core_putc;
   setbuf(stdout, NULL);
-
+  char buf[200];
   // Switch over to the crystal oscillator
   sysclk_init();
   //***********DISABLE WDT*********
@@ -69,13 +69,24 @@ int main(void) {
 					32768);
   // Initialize WDT with the given parameters. 
   wdt_init(WDT, wdt_mode, timeout_value, timeout_value);
-  //check if previous reset was due to watchdog
+  */
+  //log the reset reason
   uint32_t info = rstc_get_status(RSTC);
-  if(info & RSTC_WATCHDOG_RESET){
-    printf("watchdog reset!\n");
+  switch(info & RSTC_SR_RSTTYP_Msk){
+  case RSTC_WATCHDOG_RESET:
     core_log("watchdog reset");
+    break;
+  case RSTC_SOFTWARE_RESET:
+    core_log("software reset");
+    break;
+  case RSTC_GENERAL_RESET:
+    core_log("general reset");
+    break;
+  default:
+    snprintf(buf,200,"unexpected reset code [%d]",(int)info);
+    core_log(buf);
   }
-  -----------------     */
+  //-----------------     
   //ready to go! enable interrupts
   cpu_irq_enable();
 

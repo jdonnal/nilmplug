@@ -43,6 +43,7 @@ int mon_relay(int argc, char **argv);
 int mon_echo(int argc, char **argv);
 int mon_config(int argc, char **argv);
 int mon_log(int argc, char **argv);
+int mon_restart(int argc, char **argv);
 //putc for stdout
 void core_putc(void* stream, char c);
 
@@ -57,6 +58,8 @@ void core_process_wifi_data(void); // main loop
 void core_wifi_link(void);         // interrupt ctx
 void core_wifi_unlink(void);       // interrupt ctx
 //   Outgoing data to WiFi
+void core_get_nilm_ip_addr(void);
+void core_get_nilm_ip_addr_cb(char* data); //callback
 void core_log_power_data(power_sample *data);
 void core_transmit_power_packets(void);
 //   System logging

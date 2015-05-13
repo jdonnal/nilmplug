@@ -24,6 +24,7 @@
 #include <serial.h>
 #include <pwm.h>
 #include <gpbr.h>
+#include <efc.h>
 
 // From module: High Speed Multimedia Card Interface
 #include <hsmci.h>

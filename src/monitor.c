@@ -25,6 +25,8 @@
 static int runcmd(char *buf);
 char cmd_buf[CMDBUF_SIZE];
 int cmd_buf_idx = 0;
+bool cmd_buf_full = false; //flag when a command has been rx'd
+bool b_usb_enabled = false;
 
 //ping pong packet structs for filling and transmitting
 power_pkt power_pkts[2];
@@ -39,6 +41,9 @@ config wemo_config;
 #define TX_BUF_SIZE 50
 bool tx_pending;
 char tx_buffer[TX_BUF_SIZE];
+//Functions that *request* data from an outside server must register
+//a callback that core_process_wifi_data calls when data is received
+void (*tx_callback)(char*);
 
 struct Command {
 	const char *name;
@@ -53,7 +58,8 @@ static struct Command commands[] = {
   { "relay", "turn relay on",mon_relay},
   { "echo", "turn echo on or off",mon_echo},
   { "config", "get or set a config",mon_config},
-  { "log", "read or clear the log", mon_log}
+  { "log", "read or clear the log", mon_log},
+  { "restart", "restart [bootloader]", mon_restart}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -275,10 +281,28 @@ mon_log(int argc, char **argv){
   //shouldn't get here
   return 0;
 }
-/***** Core commands ****/
-void core_putc(void* stream, char c){
-    udi_cdc_write_buf(&c,1);
+
+int 
+mon_restart(int argc, char **argv){
+  if(argc==2){
+    //check for [bootloader] flag
+    if(strstr(argv[1],"bootloader")==argv[1]){
+      //set the gpnvm bit to atmel bootloader
+      efc_perform_command(EFC0, EFC_FCMD_CGPB, 1);
+    }
+    else{
+      printf("[bootloader] to reboot with Atmel bootloader\n");
+      return -1;
+    }
+  }
+  //detach USB
+  //  udc_detach();
+  //software reset
+  rstc_start_software_reset(RSTC);
+  return 0;
 }
+
+/***** Core commands ****/
 
 void core_process_wifi_data(void){
   char data[100];
@@ -287,14 +311,22 @@ void core_process_wifi_data(void){
   sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, data);
   printf("Got [%d] bytes on channel [%d]: %s\n",
     data_size, chan_num, data);
-  //discard responses from the NILM to power logging packets
+  //discard responses from the NILM to power logging packets, but keep the response
+  //if another core function has requested some data, this is done with the callback 
+  //function. The requesting core function registers a callback and this function calls
+  //it and then resets the callback to NULL
   if(chan_num==4){
-    printf("Discarding packet from port 4\n");
-    //clear the server buffer
-    memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
-    //close the socket
-    wifi_send_cmd("AT+CIPCLOSE=4","Unlink",data,100,1);
-    return;
+    if(tx_callback==NULL){
+      printf("Discarding packet from port 4\n");
+      //clear the server buffer
+      memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+      //close the socket
+      wifi_send_cmd("AT+CIPCLOSE=4","Unlink",data,100,1);
+      return;
+    } else{
+      (*tx_callback)(wifi_rx_buf);
+      tx_callback=NULL;
+    }
   }
   //this data must be inbound to the server port, process the command
   if(strstr(data,"relay_on")==data){
@@ -366,9 +398,15 @@ void core_transmit_power_packet(power_pkt *wemo_pkt){
   sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: NILM\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
   //send the packet!
   r = wifi_transmit(wemo_config.nilm_ip_addr,80,tx_buffer);
-  if(r==TX_SUCCESS){
+  switch(r){
+  case TX_SUCCESS:
     wemo_pkt->status = POWER_PKT_EMPTY;
-  } else {
+    break;
+  case TX_BAD_DEST_IP: //if we can't find NILM, get its IP from the manager
+    wemo_pkt->status = POWER_PKT_EMPTY; //just dump the packet
+    core_get_nilm_ip_addr();
+    break;
+  default:
     wemo_pkt->status = POWER_PKT_TX_FAIL;
   }
 }
@@ -422,24 +460,63 @@ void core_log_power_data(power_sample *sample){
   }
 }
 
+
+///////////////////
+// core_get_nilm_ip_addr
+//    Request the NILM IP address from the
+//    manager, this allows us to operate in 
+//    DHCP environments because the manager URL
+//    can be resolved by DNS to a static IP
+//
+void
+core_get_nilm_ip_addr(void){
+  char buffer[200];
+  int r;
+  sprintf(buffer,"GET /nilm/get_ip?serial_number=%s HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: %s\r\nAccept:*/*\r\n\r\n",
+	  wemo_config.serial_number,wemo_config.mgr_url);
+  r = wifi_transmit(wemo_config.mgr_url,80,buffer);
+  tx_callback = &core_get_nilm_ip_addr_cb;
+}
+//callback function
+void core_get_nilm_ip_addr_cb(char* data){
+  printf("got the data!\n");
+}
+///////////////////
+// Core Filesystem commands
+//
 void 
 core_log(const char* content){
   //log to the SD Card
   fs_log(content);
 }
 
+////////////////////
+// Core USB commands
+//
 void 
 core_usb_enable(uint8_t port, bool b_enable){
   cmd_buf_idx=0;
   memset(cmd_buf,0x0,CMDBUF_SIZE);
   if(b_enable){
     wemo_config.echo = true;
+    b_usb_enabled = true;
     delay_ms(500);
     printf("Wattsworth WEMO(R) Plug v1.0\n");
     printf("  [help] for more information\n");
     printf("> ");
   } 
+  else {
+    b_usb_enabled = false;
+  }
 }
+
+void core_putc(void* stream, char c){
+  if(b_usb_enabled){
+    while(!udi_cdc_is_tx_ready());
+    udi_cdc_write_buf(&c,1);
+  }
+}
+
 
 /***** Kernel monitor command interpreter *****/
 
@@ -512,6 +589,16 @@ void monitor(void){
       core_process_wifi_data();
       wifi_rx_buf_full=false;
     }
+    //see if we have any commands to run
+    if(cmd_buf_full){
+      runcmd(cmd_buf); //  run it
+      //clear the buffer
+      cmd_buf_idx = 0;
+      memset(cmd_buf,0x0,CMDBUF_SIZE);
+      if(wemo_config.echo)
+	printf("\r> "); //print the prompt
+      cmd_buf_full=false;
+    }
     //reset watchdog
     if(sys_tick!=prev_tick){
       prev_tick=sys_tick;
@@ -545,6 +632,8 @@ core_read_usb(uint8_t port)
   //check for incoming USB data
   while (udi_cdc_is_rx_ready()) {
     c = udi_cdc_getc();
+    if(cmd_buf_full)
+      return; //still processing last command
     if (c < 0) {
       printf("read error: %d\n", c);
       return;
@@ -560,12 +649,8 @@ core_read_usb(uint8_t port)
       cmd_buf[cmd_buf_idx] = 0; //we have a complete command
       if(wemo_config.echo)
 	printf("\r\n");
-      runcmd(cmd_buf); //  run it
-      //clear the buffer
-      cmd_buf_idx = 0;
-      memset(cmd_buf,0x0,CMDBUF_SIZE);
-      if(wemo_config.echo)
-	printf("\r> "); //print the prompt
+      //run the command in the main loop (get out of USB interrupt ctx)
+      cmd_buf_full = true;
     }
   }
 }
