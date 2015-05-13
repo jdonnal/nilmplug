@@ -44,6 +44,8 @@ int mon_echo(int argc, char **argv);
 int mon_config(int argc, char **argv);
 int mon_log(int argc, char **argv);
 int mon_restart(int argc, char **argv);
+int mon_memory(int argc, char **argv);
+
 //putc for stdout
 void core_putc(void* stream, char c);
 
@@ -67,5 +69,6 @@ void core_log(const char* content);
 //   USB terminal functions
 void core_read_usb(uint8_t port);
 void core_usb_enable(uint8_t port, bool b_enable);
-
+//   Panic loop
+void core_panic(void);
 #endif

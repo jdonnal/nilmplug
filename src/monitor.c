@@ -14,14 +14,15 @@
 #include "wifi.h"
 #include "wemo_fs.h"
 #include "rgb_led.h"
+#include "conf_membag.h"
 
 //data structures and functions for 
 //command line interaction
-#define CMDBUF_SIZE	80
+#define CMD_BUF_SIZE MD_BUF_SIZE
 #define WHITESPACE "\t\r\n "
 #define MAXARGS 16
 static int runcmd(char *buf);
-char cmd_buf[CMDBUF_SIZE];
+char *cmd_buf;
 int cmd_buf_idx = 0;
 bool cmd_buf_full = false; //flag when a command has been rx'd
 bool b_usb_enabled = false;
@@ -31,14 +32,7 @@ power_pkt power_pkts[2];
 power_pkt *cur_pkt, *tx_pkt;
 //data structure for wemo configuration
 config wemo_config;
-//buffer and flag for transmitting responses to server requests
-//  responses to server requests have to occur in the main loop
-//  because the server response routine executes in interrupt context
-//  the main loop checks if the pending_tx flag is set and if it is,
-//  tx_buffer is send out channel 4 and the socket is closed
-#define TX_BUF_SIZE 50
-bool tx_pending;
-char tx_buffer[TX_BUF_SIZE];
+
 //Functions that *request* data from an outside server must register
 //a callback that core_process_wifi_data calls when data is received
 void (*tx_callback)(char*);
@@ -57,6 +51,7 @@ static struct Command commands[] = {
   { "echo", "turn echo on or off",mon_echo},
   { "config", "get or set a config",mon_config},
   { "log", "read or clear the log", mon_log},
+  { "memory", "show memory statistics", mon_memory},
   { "restart", "restart [bootloader]", mon_restart}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -72,17 +67,22 @@ mon_help(int argc, char **argv)
 
 int
 mon_rtc(int argc, char **argv){
-  char buf[30];
+  int time_buf_size =  MD_BUF_SIZE;
+  char *time_buf;
   uint8_t yr, dt, mo, dw, hr, mn, sc;
   if(argc<2){
     printf("wrong number of args to set time\n");
     return -1;
   }
-  if(strstr(argv[1],"get")==argv[1]){
-    rtc_get_time_str(buf);
-    printf("Time: %s\n",buf);
+  if(strcmp(argv[1],"get")==0){
+    time_buf = membag_alloc(time_buf_size);
+    if(time_buf==NULL)
+      core_panic();
+    rtc_get_time_str(time_buf,time_buf_size);
+    printf("Time: %s\n",time_buf);
+    membag_free(time_buf);
   }
-  else if(strstr(argv[1],"set")==argv[1]){
+  else if(strcmp(argv[1],"set")==0){
     if(argc!=9){
       printf("please specify a time\n");
       return -1;
@@ -97,8 +97,12 @@ mon_rtc(int argc, char **argv){
     if(i2c_rtc_set_time(sc,mn,hr,dw,dt,mo,yr)!=0)
       printf("error setting RTC\n");
     else{
-      rtc_get_time_str(buf);
-      printf("Set time to: %s\n",buf);
+      time_buf = membag_alloc(time_buf_size);
+      if(time_buf==NULL)
+	core_panic();
+      rtc_get_time_str(time_buf,time_buf_size);
+      printf("Set time to: %s\n",time_buf);
+      membag_free(time_buf);
     }
   }
   else{
@@ -235,7 +239,8 @@ mon_config(int argc, char **argv){
 int
 mon_log(int argc, char **argv){
   FIL fil;
-  char line[100];
+  int line_buf_size = MD_BUF_SIZE;
+  char *line_buf;
   FRESULT fr; 
 
   if(argc!=2){
@@ -243,20 +248,22 @@ mon_log(int argc, char **argv){
     return -1;
   }
   if(strstr(argv[1],"read")==argv[1]){
+    //allocate the line buffer
+    line_buf = membag_alloc(line_buf_size);
+    if(line_buf==NULL)
+      core_panic();
     //print the log out to STDOUT
     fr = f_open(&fil, LOG_FILE, FA_READ);
     if(fr){
       printf("error reading log: %d\n",(int)fr);
+      membag_free(line_buf);
       return -1;
     }
-    //    cpu_irq_disable();
-    while(f_gets(line, sizeof(line), &fil)){
-      printf("%s",line);
-      //      delay_ms(100);
+    while(f_gets(line_buf, line_buf_size, &fil)){
+      printf("%s",line_buf);
     }
-    
-    //    cpu_irq_enable();
     f_close(&fil);
+    membag_free(line_buf);
     return 0;
   }
   else if(strstr(argv[1],"erase")==argv[1]){
@@ -300,6 +307,16 @@ mon_restart(int argc, char **argv){
   return 0;
 }
 
+int 
+mon_memory(int argc, char **argv){
+  size_t total, free;
+  total = membag_get_total();
+  free = membag_get_total_free();
+  printf("Allocated %d of %d bytes (%d%%)\n",total-free,total,((total-free)*100)/total);
+  printf("Largest free block: %d bytes\n",membag_get_largest_free_block_size());
+  printf("Smallest free block: %d bytes\n",membag_get_smallest_free_block_size());
+  return 0;
+}
 /***** Core commands ****/
 
 void core_process_wifi_data(void){
@@ -341,8 +358,8 @@ void core_process_wifi_data(void){
     return;
   }
 
-  //  memset(tx_buffer,0x0,TX_BUF_SIZE);
-  //memcpy(tx_buffer,"OK",strlen("OK"));
+  //  memset(wifi_tx_buf,0x0,TX_BUF_SIZE);
+  //memcpy(wifi_tx_buf,"OK",strlen("OK"));
   //tx_pending=true;
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
@@ -426,7 +443,7 @@ void core_log_power_data(power_sample *sample){
       return;
     }
     //set the timestamp for the packet with the first one
-    rtc_get_time_str(cur_pkt->timestamp);
+    rtc_get_time_str(cur_pkt->timestamp,PKT_TIMESTAMP_BUF_SIZE);
     break;
   case POWER_PKT_TX_IN_PROG:
     printf("Error, this packet is still being transmitted\n");
@@ -493,7 +510,7 @@ core_log(const char* content){
 void 
 core_usb_enable(uint8_t port, bool b_enable){
   cmd_buf_idx=0;
-  memset(cmd_buf,0x0,CMDBUF_SIZE);
+  memset(cmd_buf,0x0,CMD_BUF_SIZE);
   if(b_enable){
     wemo_config.echo = true;
     b_usb_enabled = true;
@@ -527,6 +544,11 @@ bool wifi_on = true;
 void monitor(void){
   uint32_t prev_tick=0;
 
+  //allocate memory for buffers and flush them
+  cmd_buf = membag_alloc(CMD_BUF_SIZE);
+  if(!cmd_buf)
+    core_panic();
+  memset(cmd_buf,0x0,CMD_BUF_SIZE);
   //initialize the power packet buffers
   tx_pkt = &power_pkts[0];
   cur_pkt = &power_pkts[1];
@@ -591,7 +613,7 @@ void monitor(void){
       runcmd(cmd_buf); //  run it
       //clear the buffer
       cmd_buf_idx = 0;
-      memset(cmd_buf,0x0,CMDBUF_SIZE);
+      memset(cmd_buf,0x0,CMD_BUF_SIZE);
       if(wemo_config.echo)
 	printf("\r> "); //print the prompt
       cmd_buf_full=false;
@@ -638,7 +660,7 @@ core_read_usb(uint8_t port)
       if (wemo_config.echo)
 	udi_cdc_putc('\b');
       cmd_buf_idx--;
-    } else if (c >= ' ' && cmd_buf_idx < CMDBUF_SIZE-1) {
+    } else if (c >= ' ' && cmd_buf_idx < CMD_BUF_SIZE-1) {
       if(wemo_config.echo)
 	udi_cdc_putc(c);
       cmd_buf[cmd_buf_idx++] = c;
@@ -689,4 +711,12 @@ runcmd(char *buf)
   }
   printf("Unknown command '%s'\n", argv[0]);
   return 0;
+}
+
+//Core Panic
+//  set light red, spin forever
+void 
+core_panic(void){
+  rgb_led_set(255,0,0);
+  while(1);
 }

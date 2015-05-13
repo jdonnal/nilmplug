@@ -3,9 +3,10 @@
 
 #define SERVER_BUF_SIZE 300
 #define PKT_SIZE 10
+#define PKT_TIMESTAMP_BUF_SIZE 50
 typedef struct power_pkt_struct {
   uint8_t status;             //struct valid flag
-  char timestamp[40];         //YYMMDD HH:MM:ss
+  char timestamp[PKT_TIMESTAMP_BUF_SIZE]; //YYMMDD HH:MM:ss
   int32_t vrms[PKT_SIZE];     //RMS voltage
   int32_t irms[PKT_SIZE];     //RMS current
   int32_t watts[PKT_SIZE];    //watts

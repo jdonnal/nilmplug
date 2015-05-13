@@ -57,12 +57,12 @@ void rtc_get_time(Rtc *p_rtc, uint32_t *ul_hour, uint32_t *ul_minute, uint32_t *
 }
 
 //returns timestamp as string YYYY-MM-DD HH:MM:SS
-void rtc_get_time_str(char* buf){
+void rtc_get_time_str(char* buf, int buf_size){
   uint32_t ul_year, ul_month, ul_day, ul_week;
   uint32_t ul_hour, ul_minute, ul_second;
   rtc_get_date(NULL,&ul_year,&ul_month,&ul_day,&ul_week);
   rtc_get_time(NULL,&ul_hour,&ul_minute,&ul_second);
-  sprintf(buf,"20%02lu-%02lu-%02lu %02lu:%02lu:%02lu",ul_year,ul_month,ul_day,
+  snprintf(buf,buf_size,"20%02lu-%02lu-%02lu %02lu:%02lu:%02lu",ul_year,ul_month,ul_day,
 	  ul_hour,ul_minute,ul_second);
   return;
 }

@@ -2,6 +2,7 @@
 #include "wemo_fs.h"
 #include "rtc.h"
 #include "monitor.h"
+#include "conf_membag.h"
 #include <string.h>
 
 
@@ -110,8 +111,9 @@ void fs_write_config(void){
 
 
 void fs_log(const char* content){
-  char msg_buf[200];
-  char ts_buf[30];
+  int buf_size = MD_BUF_SIZE;
+  char *msg_buf;
+  char *ts_buf;
   UINT len;
   FIL log_file;
   FRESULT res;
@@ -124,11 +126,21 @@ void fs_log(const char* content){
   if (res != FR_OK) {
     printf("[FAIL] res %d\r\n", res);
   }
-  memset(msg_buf,0x0,strlen(content)+30);
-  memset(ts_buf,0x0,30);
-  rtc_get_time_str(ts_buf);
-  sprintf(msg_buf,"[%s]: %s\n",ts_buf,content);
+  //allocate memory
+  msg_buf = membag_alloc(buf_size);
+  if(msg_buf==NULL)
+    core_panic();
+  ts_buf = membag_alloc(buf_size);
+  if(ts_buf==NULL)
+    core_panic();
+  memset(msg_buf,0x0,buf_size);
+  memset(ts_buf,0x0,buf_size);
+  rtc_get_time_str(ts_buf,buf_size);
+  snprintf(msg_buf,buf_size,"[%s]: %s\n",ts_buf,content);
   f_write(&log_file,msg_buf,strlen(msg_buf),&len);
   //close the log file
   f_close(&log_file);
+  //free memory
+  membag_free(msg_buf);
+  membag_free(ts_buf);
 }

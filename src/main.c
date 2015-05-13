@@ -7,7 +7,7 @@
 #include "monitor.h"
 #include "wemo_fs.h"
 #include "rgb_led.h"
-
+#include "conf_membag.h"
 #include <stdio.h>
 
 //! Pointer to the external low level write function.
@@ -22,7 +22,7 @@ int main(void) {
 
   ptr_put = (int (*)(void volatile*,char))&core_putc;
   setbuf(stdout, NULL);
-  char buf[200];
+  char* buf;
   // Switch over to the crystal oscillator
   sysclk_init();
   //***********DISABLE WDT*********
@@ -85,13 +85,18 @@ int main(void) {
     core_log("general reset");
     break;
   default:
-    snprintf(buf,200,"unexpected reset code [%d]",(int)info);
-    core_log(buf);
+    buf = membag_alloc(MD_BUF_SIZE);
+    if(buf==NULL){
+      core_log("out of memory!");
+    } else {
+      snprintf(buf,MD_BUF_SIZE,"unexpected reset code [%d]",(int)info);
+      core_log(buf);
+      membag_free(buf);
+    }
   }
   //-----------------     
   //ready to go! enable interrupts
   cpu_irq_enable();
-
   printf("entering monitor\n");
   monitor();
   printf("uh oh... out of monitor\n");
