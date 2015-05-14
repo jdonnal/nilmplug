@@ -103,9 +103,9 @@ ISR(UART1_Handler)
       buf[buf_idx++]=tmp;
     }
     break;
-  case 30: //samle is full, read checksum and return data
+  case 30: //sample is full, read checksum and return data
     if(process_sample(buf)){
-      //succes, stop listening to the UART
+      //success, stop listening to the UART
       usart_disable_interrupt(WEMO_UART, US_IER_RXRDY);
       //reset the index
       buf_idx=0;
