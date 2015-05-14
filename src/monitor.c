@@ -1,8 +1,3 @@
-
-/****************************
- * Monitor code from 6.828
- *
- ***************************/
 #include "asf.h"
 #include "debug.h"
 #include "string.h"
@@ -117,20 +112,27 @@ mon_rtc(int argc, char **argv){
 int
 mon_relay(int argc, char **argv){
   int state;
-  if(argc!=2){
-    printf("wrong number of args to relay\n");
+  state = gpbr_read(GPBR_RELAY_STATE);
+  if(argc==1){ //print the relay state
+    if(state)
+      printf("relay [on]\n");
+    else
+      printf("relay [off]\n");
     return -1;
   }
-  if(strstr(argv[1],"on")==argv[1]){
+  if(argc!=2){
+    printf("relay [on|off|toggle]\n");
+    return -1;
+  }
+  if(strcmp(argv[1],"on")==0){
     gpio_set_pin_high(RELAY_PIN);
     gpbr_write(GPBR_RELAY_STATE,1);
   }
-  else if(strstr(argv[1],"off")==argv[1]){
+  else if(strcmp(argv[1],"off")==0){
     gpio_set_pin_low(RELAY_PIN);
     gpbr_write(GPBR_RELAY_STATE,0);
   }
   else if(strstr(argv[1],"toggle")==argv[1]){
-    state = gpbr_read(GPBR_RELAY_STATE);
     gpio_toggle_pin(RELAY_PIN);
     if(state==0)
       state = 1;
@@ -151,9 +153,9 @@ mon_echo(int argc, char **argv){
     printf("wrong number of args to relay\n");
     return -1;
   }
-  if(strstr(argv[1],"on")==argv[1])
+  if(strcmp(argv[1],"on")==0)
     wemo_config.echo = true;
-  else if(strstr(argv[1],"off")==argv[1])
+  else if(strcmp(argv[1],"off")==0)
     wemo_config.echo = false;
   else{
     printf("bad argument to echo\n");
@@ -189,7 +191,7 @@ mon_config(int argc, char **argv){
     return -1;
   }
   //--- request to get a config ----
-  if(strstr(argv[1],"get")==argv[1]){
+  if(strcmp(argv[1],"get")==0){
     if(argc!=3){
       printf("specify a config to read\n");
       return -1;
@@ -206,7 +208,7 @@ mon_config(int argc, char **argv){
     return -1;
   }
   //--- request to set a config ----
-  if(strstr(argv[1],"set")==argv[1]){
+  if(strcmp(argv[1],"set")==0){
     if(argc<3){
       //clear the specified config
       printf("specify a config and the value");
@@ -247,7 +249,7 @@ mon_log(int argc, char **argv){
     printf("specify [read] or [erase]\n");
     return -1;
   }
-  if(strstr(argv[1],"read")==argv[1]){
+  if(strcmp(argv[1],"read")==0){
     //allocate the line buffer
     line_buf = membag_alloc(line_buf_size);
     if(line_buf==NULL)
@@ -266,7 +268,7 @@ mon_log(int argc, char **argv){
     membag_free(line_buf);
     return 0;
   }
-  else if(strstr(argv[1],"erase")==argv[1]){
+  else if(strcmp(argv[1],"erase")==0){
     fr = f_open(&fil, LOG_FILE, FA_WRITE);
     if(fr){
       printf("error erasing log: %d\n", (int)fr);
@@ -291,7 +293,7 @@ int
 mon_restart(int argc, char **argv){
   if(argc==2){
     //check for [bootloader] flag
-    if(strstr(argv[1],"bootloader")==argv[1]){
+    if(strcmp(argv[1],"bootloader")==0){
       //set the gpnvm bit to atmel bootloader
       efc_perform_command(EFC0, EFC_FCMD_CGPB, 1);
     }
@@ -320,12 +322,15 @@ mon_memory(int argc, char **argv){
 /***** Core commands ****/
 
 void core_process_wifi_data(void){
-  char data[100];
+  int BUF_SIZE=MD_BUF_SIZE;
+  char *buf;
   int chan_num, data_size;
+  //allocate memory
+  buf = core_malloc(BUF_SIZE);
   //match against the data
-  sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, data);
-  printf("Got [%d] bytes on channel [%d]: %s\n",
-    data_size, chan_num, data);
+  sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, buf);
+  printf("Got [%d] bytes on channel [%d]\n",
+    data_size, chan_num);
   //discard responses from the NILM to power logging packets, but keep the response
   //if another core function has requested some data, this is done with the callback 
   //function. The requesting core function registers a callback and this function calls
@@ -336,31 +341,32 @@ void core_process_wifi_data(void){
       //clear the server buffer
       memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
       //close the socket
-      wifi_send_cmd("AT+CIPCLOSE=4","Unlink",data,100,1);
+      wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,BUF_SIZE,1);
+      //free memory
+      core_free(buf);
       return;
     } else{
+      //execute the callback
       (*tx_callback)(wifi_rx_buf);
       tx_callback=NULL;
     }
   }
   //this data must be inbound to the server port, process the command
-  if(strstr(data,"relay_on")==data){
+  if(strcmp(buf,"relay_on")==0){
     gpio_set_pin_high(RELAY_PIN);
     printf("relay ON\n");
   }
-  else if(strstr(data,"relay_off")==data){
+  else if(strcmp(buf,"relay_off")==0){
     gpio_set_pin_low(RELAY_PIN);
     printf("relay OFF\n");
   }
   else{
-    printf("unknown command: %s\n",data);
+    printf("unknown command: %s\n",buf);
     wifi_send_data(0,"error: unknown command");
+    //free memory
+    core_free(buf);
     return;
   }
-
-  //  memset(wifi_tx_buf,0x0,TX_BUF_SIZE);
-  //memcpy(wifi_tx_buf,"OK",strlen("OK"));
-  //tx_pending=true;
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
   //return "OK" to indicate success
@@ -720,3 +726,20 @@ core_panic(void){
   rgb_led_set(255,0,0);
   while(1);
 }
+
+//Core memory functions
+void*
+core_malloc(int size){
+  void* ptr;
+  ptr = membag_alloc(size);
+  if(ptr==NULL)
+    core_panic();
+  memset(ptr,0x0,size);
+  return ptr;
+}
+
+void
+core_free(void *ptr){
+  membag_free(ptr);
+}
+  

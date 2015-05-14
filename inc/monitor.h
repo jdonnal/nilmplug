@@ -51,9 +51,6 @@ void core_putc(void* stream, char c);
 
 
 //Functions implementing core commands
-#define WIFI_RX_BUF_SIZE 500
-char wifi_rx_buf [WIFI_RX_BUF_SIZE];
-uint8_t wifi_rx_buf_full; //flag to notify main loop we have data
 
 //   Incoming data from WiFi
 void core_process_wifi_data(void); // main loop
@@ -71,4 +68,8 @@ void core_read_usb(uint8_t port);
 void core_usb_enable(uint8_t port, bool b_enable);
 //   Panic loop
 void core_panic(void);
+//   Allocate, clear, and panic on failure
+void* core_malloc(int size);
+//   Free (wrapper around membag_free)
+void core_free(void* ptr);
 #endif

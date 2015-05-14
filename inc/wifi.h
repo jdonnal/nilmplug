@@ -1,7 +1,10 @@
 #ifndef __WIFI_H__
 #define __WIFI_H__
 
-#define RESP_BUF_SIZE 400
+#define RESP_BUF_SIZE LG_BUF_SIZE
+#define RESP_COMPLETE_BUF_SIZE MD_BUF_SIZE
+#define WIFI_RX_BUF_SIZE XL_BUF_SIZE
+
 #define MAX_TRIES 3 //number of times to try joining a network
 
 #define TX_IDLE     2
@@ -11,8 +14,11 @@
 #define TX_TIMEOUT -2
 #define TX_BAD_DEST_IP -3
 
-int wifi_init(void);
+//WiFi receive buffer, filled by wifi uart, handled by core
+char *wifi_rx_buf;
+uint8_t wifi_rx_buf_full; //flag to notify main loop we have data
 
+int wifi_init(void);
 int wifi_server_start(void);
 int wifi_transmit(char *url, int port, char *data);
 int wifi_send_cmd(const char* cmd, const char* resp_complete, char* resp, 
