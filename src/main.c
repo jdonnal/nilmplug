@@ -36,7 +36,7 @@ int main(void) {
   usb_init();
   i2c_rtc_init();
   fs_init(); //file system (config and logging)
-  wemo_init();  //interacting with WEMO
+  wemo_init();  //interacting with WEMO (UART at priority 4 *lowest*)
   //initialize system tick with PWM
   pmc_enable_periph_clk(ID_PWM);
   pwm_channel_disable(PWM, 0);
@@ -58,7 +58,7 @@ int main(void) {
   //                enable interrupts on overflow
   pwm_channel_enable_interrupt(PWM,0,0);
   pwm_channel_enable(PWM,0);
-  NVIC_SetPriority(PWM_IRQn,3); //lowest priority
+  NVIC_SetPriority(PWM_IRQn,3); //low priority
   NVIC_EnableIRQ(PWM_IRQn);
   /*    ----NOT USING WDT-----
   // Configure WDT to trigger an interrupt (or reset). 

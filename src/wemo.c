@@ -38,6 +38,7 @@ void wemo_init(void){
   pmc_enable_periph_clk(ID_WEMO_UART);
   sysclk_enable_peripheral_clock(ID_WEMO_UART);
   usart_serial_init(WEMO_UART,&usart_options);
+  NVIC_SetPriority(WEMO_UART_IRQ,4); //lowest priority
   NVIC_EnableIRQ(WEMO_UART_IRQ);
 };
 
@@ -110,7 +111,7 @@ ISR(UART1_Handler)
       //reset the index
       buf_idx=0;
     } else { //failure, log it and look for the next packet
-      core_log("bad packet");
+      core_log("corrupt wemo data");
       buf_idx=0;
     }
     break;

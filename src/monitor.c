@@ -322,13 +322,25 @@ mon_memory(int argc, char **argv){
 /***** Core commands ****/
 
 void core_process_wifi_data(void){
-  int BUF_SIZE=MD_BUF_SIZE;
+  int BUF_SIZE=XL_BUF_SIZE;
   char *buf;
-  int chan_num, data_size;
+  int chan_num, data_size, r;
+  //match against the data
+  if(strlen(wifi_rx_buf)>BUF_SIZE){
+    printf("can't process rx'd packet, too large\n");
+    core_log("can't process rx'd packet, too large");
+    return;
+  }
   //allocate memory
   buf = core_malloc(BUF_SIZE);
-  //match against the data
-  sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, buf);
+  r=sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, buf);
+  if(r!=3){
+    printf("rx'd corrupt data, ignoring\n");
+    core_log("rx'd corrupt data, ignoring\n");
+    //free memory
+    core_free(buf);
+    return;
+  }
   printf("Got [%d] bytes on channel [%d]\n",
     data_size, chan_num);
   //discard responses from the NILM to power logging packets, but keep the response
@@ -337,7 +349,6 @@ void core_process_wifi_data(void){
   //it and then resets the callback to NULL
   if(chan_num==4){
     if(tx_callback==NULL){
-      printf("Discarding packet from port 4\n");
       //clear the server buffer
       memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
       //close the socket
@@ -387,13 +398,15 @@ void core_wifi_unlink(void){
 
 void core_transmit_power_packet(power_pkt *wemo_pkt){
   int r, i, j;
-  char tx_buffer[1100], content[500];
-  char vrms_str[100], irms_str[100],  watts_str[100], pavg_str[100];
-  char pf_str[100],   freq_str[100],    kwh_str[100];
-  char *bufs[7] = {vrms_str, irms_str, watts_str, pavg_str, pf_str, freq_str, kwh_str};
+  int TX_BUF_SIZE = XL_BUF_SIZE;
+  int PAYLOAD_BUF_SIZE = XL_BUF_SIZE;
+  int DATA_BUF_SIZE = MD_BUF_SIZE;
+  char *tx_buf, *payload_buf;
+  char *bufs[7];
   int32_t *srcs[7] = {wemo_pkt->vrms, wemo_pkt->irms, wemo_pkt->pavg, wemo_pkt->watts,
 		    wemo_pkt->pf, wemo_pkt->freq, wemo_pkt->kwh};
   char *buf; int32_t *src;
+  
   //make sure all the data is present
   if(wemo_pkt->status != POWER_PKT_READY){
     printf("Error, packet is not ready to tx!\n");
@@ -401,24 +414,40 @@ void core_transmit_power_packet(power_pkt *wemo_pkt){
   }
   //now we are filling up the POST request
   wemo_pkt->status = POWER_PKT_TX_IN_PROG;
+
+  //allocate memory for the POST request
+  tx_buf = core_malloc(TX_BUF_SIZE);
+  payload_buf = core_malloc(DATA_BUF_SIZE);
+
   //print out the data arrays as strings
   for(j=0;j<7;j++){
-    buf = bufs[j]; src = srcs[j];
-    memset(buf,0x0,100); //clear out the buffers
+    src = srcs[j];
+    buf = core_malloc(DATA_BUF_SIZE);
+    bufs[j] = buf;
     for(i=0;i<PKT_SIZE;i++){
-      sprintf(buf+strlen(buf),"%li",src[i]);
+      snprintf(buf+strlen(buf),DATA_BUF_SIZE,"%li",src[i]);
       if(i<(PKT_SIZE-1))
-	sprintf(buf+strlen(buf),", ");
+	snprintf(buf+strlen(buf),DATA_BUF_SIZE,", ");
     }
   }
   //stick them in a json format
-  memset(content,0x0,500); memset(tx_buffer,0x0,1100);
-  sprintf(content,"{\"plug\":\"%s\",\"ip\":\"%s\",\"time\":\"%s\",\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]}",
-	  wemo_config.serial_number,wemo_config.ip_addr,wemo_pkt->timestamp,vrms_str,
-	  irms_str,watts_str,pavg_str,pf_str,freq_str,kwh_str);
-  sprintf(tx_buffer,"POST /config/plugs/log HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: NILM\r\nAccept:*/*\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/json\r\n\r\n%s",strlen(content),content);
+  snprintf(payload_buf,PAYLOAD_BUF_SIZE,
+	   "{\"plug\":\"%s\",\"ip\":\"%s\",\"time\":\"%s\","
+	   "\"vrms\":[%s],\"irms\":[%s],\"watts\":[%s],\"pavg\":[%s],"
+	   "\"pf\":[%s],\"freq\":[%s],\"kwh\":[%s]}",
+	   wemo_config.serial_number,wemo_config.ip_addr,wemo_pkt->timestamp,
+	   bufs[0],bufs[1],bufs[2],bufs[3],bufs[4],bufs[5],bufs[6]);
+  snprintf(tx_buf,TX_BUF_SIZE,
+	     "POST /config/plugs/log HTTP/1.1\r\n"
+	     "User-Agent: WemoPlug\r\n"
+	     "Host: NILM\r\nAccept:*/*\r\n"
+	     "Connection: keep-alive\r\n"
+	     "Content-Type: application/json\r\n"
+	     "Content-Length: %d\r\n"
+	     "\r\n%s",
+	     strlen(payload_buf),payload_buf);
   //send the packet!
-  r = wifi_transmit(wemo_config.nilm_ip_addr,80,tx_buffer);
+  r = wifi_transmit(wemo_config.nilm_ip_addr,80,tx_buf);
   switch(r){
   case TX_SUCCESS:
     wemo_pkt->status = POWER_PKT_EMPTY;
@@ -429,6 +458,12 @@ void core_transmit_power_packet(power_pkt *wemo_pkt){
     break;
   default:
     wemo_pkt->status = POWER_PKT_TX_FAIL;
+  }
+  //free memory
+  core_free(tx_buf);
+  core_free(payload_buf);
+  for(j=0;j<7;j++){
+    core_free(bufs[j]);
   }
 }
 
@@ -491,16 +526,27 @@ void core_log_power_data(power_sample *sample){
 //
 void
 core_get_nilm_ip_addr(void){
-  char buffer[200];
-  sprintf(buffer,"GET /nilm/get_ip?serial_number=%s HTTP/1.1\r\nUser-Agent: WemoPlug\r\nHost: %s\r\nAccept:*/*\r\n\r\n",
-	  wemo_config.serial_number,wemo_config.mgr_url);
-  wifi_transmit(wemo_config.mgr_url,80,buffer);
+  int BUF_SIZE=MD_BUF_SIZE;
+  char *buf;
+  //allocate memory
+  buf=core_malloc(BUF_SIZE);
+  snprintf(buf,BUF_SIZE,
+	   "GET /nilm/get_ip?serial_number=%s HTTP/1.1\r\n"
+	   "User-Agent: WemoPlug\r\n"
+	   "Host: %s\r\n"
+	   "Accept:*/*\r\n\r\n",
+	   wemo_config.serial_number,wemo_config.mgr_url);
+  wifi_transmit(wemo_config.mgr_url,80,buf);
   tx_callback = &core_get_nilm_ip_addr_cb;
+  //free memory
+  core_free(buf);
 }
+////////////////////
 //callback function
 void core_get_nilm_ip_addr_cb(char* data){
   printf("got the data!\n");
 }
+
 ///////////////////
 // Core Filesystem commands
 //
@@ -585,11 +631,14 @@ void monitor(void){
   }
   //setup WIFI
   if(wifi_on){
-    while(wifi_init()!=0){
-      rgb_led_set(255,0,0);
+    if(wifi_init()!=0){
+      wifi_on=false;
+      rgb_led_set(125,0,125);
     }
-    //good to go! turn light green
-    rgb_led_set(0,125,30);
+    else{
+      //good to go! turn light green
+      rgb_led_set(0,125,30);
+    }
   }
   //initialize the wifi_rx buffer and flag
   wifi_rx_buf_full = false;
@@ -646,9 +695,6 @@ ISR(PWM_Handler)
   //clear the interrupt so we don't get stuck here
   pwm_channel_get_interrupt_status(PWM);  
 }
-
-
-
 
 void
 core_read_usb(uint8_t port)

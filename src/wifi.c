@@ -139,7 +139,24 @@ int wifi_init(void){
   }
   //save the IP to our config
   memset(wemo_config.ip_addr,0x0,30);
-  idx = (uint32_t)strstr(buf,"\r\n")-(uint32_t)buf;
+  //make sure we have a valid ip
+  idx = (uint32_t)strstr(buf,"\r\n");
+  if(idx==0){
+    core_log("could not get IP address");
+    //free memory
+    core_free(tx_buf);
+    core_free(buf);
+    return -1;
+  }
+  //find the end of the IP address
+  idx -= (uint32_t)buf;
+  if(idx>MAX_CONFIG_LEN){
+    core_log("ip address too long for config buffer\n");
+    //free memory
+    core_free(tx_buf);
+    core_free(buf);
+    return -1;
+  }
   memcpy(wemo_config.ip_addr,buf,idx);
   //set the mode to multiple connections
   wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
@@ -365,7 +382,6 @@ ISR(UART0_Handler)
 	resp_buf[i]=resp_buf[i+1];
       resp_buf[8]=tmp;
       if(strstr((char*)resp_buf,"SEND OK\r\n")==(char*)resp_buf){
-	printf("Got SEND OK\n");
 	data_tx_status=TX_SUCCESS;
       }
     } else{
