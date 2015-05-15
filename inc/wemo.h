@@ -1,7 +1,6 @@
 #ifndef __SERVER_H__
 #define __SERVER_H__
 
-#define SERVER_BUF_SIZE 300
 #define PKT_SIZE 10
 #define PKT_TIMESTAMP_BUF_SIZE 50
 typedef struct power_pkt_struct {

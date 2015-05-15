@@ -296,6 +296,9 @@ mon_restart(int argc, char **argv){
     if(strcmp(argv[1],"bootloader")==0){
       //set the gpnvm bit to atmel bootloader
       efc_perform_command(EFC0, EFC_FCMD_CGPB, 1);
+      rgb_led_set(0,0,0);
+      delay_ms(500);
+      rgb_led_set(128,128,128); //indicate bootloader mode set
     }
     else{
       printf("[bootloader] to reboot with Atmel bootloader\n");
@@ -382,6 +385,9 @@ void core_process_wifi_data(void){
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
   //return "OK" to indicate success
   wifi_send_data(0,"OK");
+  //free the memory
+  core_free(buf);
+  return;
 }
 
 void core_wifi_link(void){
