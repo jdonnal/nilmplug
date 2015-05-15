@@ -1,0 +1,1 @@
+ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="6124", SYMLINK +="serial/by-type/sam-ba"
