@@ -58,7 +58,7 @@ int main(void) {
   //                enable interrupts on overflow
   pwm_channel_enable_interrupt(PWM,0,0);
   pwm_channel_enable(PWM,0);
-  NVIC_SetPriority(PWM_IRQn,3); //low priority
+  NVIC_SetPriority(PWM_IRQn,0); //highest priority
   NVIC_EnableIRQ(PWM_IRQn);
   /*    ----NOT USING WDT-----
   // Configure WDT to trigger an interrupt (or reset). 

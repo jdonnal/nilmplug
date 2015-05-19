@@ -5,14 +5,15 @@
 #define RESP_COMPLETE_BUF_SIZE MD_BUF_SIZE
 #define WIFI_RX_BUF_SIZE XL_BUF_SIZE
 
-#define MAX_TRIES 3 //number of times to try joining a network
+//#define MAX_TRIES 3 //number of times to try joining a network
 
-#define TX_IDLE     2
-#define TX_PENDING  1
-#define TX_SUCCESS  0
-#define TX_ERROR   -1
-#define TX_TIMEOUT -2
-#define TX_BAD_DEST_IP -3
+#define TX_IDLE              2
+#define TX_PENDING           1
+#define TX_SUCCESS           0
+#define TX_ERROR            -1
+#define TX_TIMEOUT          -2
+#define TX_BAD_DEST_IP      -3
+#define TX_ERR_MODULE_RESET -4
 
 //WiFi receive buffer, filled by wifi uart, handled by core
 char *wifi_rx_buf;

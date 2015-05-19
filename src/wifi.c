@@ -79,7 +79,7 @@ int wifi_init(void){
   TC0->TC_CHANNEL[0].TC_RA = 0;  // doesn't matter
   TC0->TC_CHANNEL[0].TC_RC = 64000;  // sets frequency: 32kHz/32000 = 1 Hz
   NVIC_ClearPendingIRQ(TC0_IRQn);
-  NVIC_SetPriority(TC0_IRQn,0);//highest priority
+  NVIC_SetPriority(TC0_IRQn,1);//high priority
   NVIC_EnableIRQ(TC0_IRQn);
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
@@ -159,6 +159,7 @@ int wifi_transmit(char *url, int port, char *data){
   int BUF_SIZE = MD_BUF_SIZE;
   char *cmd;
   char *buf;
+  int r;
   //allocate memory
   cmd = core_malloc(BUF_SIZE);
   buf = core_malloc(BUF_SIZE);
@@ -191,24 +192,24 @@ int wifi_transmit(char *url, int port, char *data){
     return TX_ERROR;
   }
   //send the data
-  if(wifi_send_data(4,data)!=0){
+  if((r=wifi_send_data(4,data))!=0){
     printf("error transmitting data: %d\n",data_tx_status);
     core_free(cmd);
     core_free(buf);
-    return TX_ERROR;
+    return r;
   }
   //connection is closed *after* we receive the server's response
   //this is processed by the core and we discard the response
   //wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,100,1);
   core_free(cmd);
   core_free(buf);
-  return TX_SUCCESS; //success!
+  return r; //success!
 }
 
 int wifi_send_data(int ch, const char* data){
   int cmd_buf_size = MD_BUF_SIZE;
   char *cmd;
-  int timeout = 2; //wait 2 seconds to transmit the data
+  int timeout = 5; //wait 5 seconds to transmit the data
   //allocate memory
   cmd = core_malloc(cmd_buf_size);
   snprintf(cmd,cmd_buf_size,"AT+CIPSEND=%d,%d\r\n",ch,strlen(data));
@@ -235,19 +236,31 @@ int wifi_send_data(int ch, const char* data){
       rx_wait = false;
       //free memory
       core_free(cmd);
-      return 0;
+      return TX_SUCCESS;
     }
     timeout--;
   }
+  //check if this is a timeout error
+  if(strlen((char*)resp_buf)==0){
+    printf("timeout error\n");
+    core_log("timeout error");
+    data_tx_status = TX_TIMEOUT;
+  }
   //an error occured, see if it is due to a module reset
-  if(strcmp((char*)resp_buf,"\r\nready\r\n")==0){
+  else if(strcmp((char*)resp_buf,"\r\nready\r\n")==0){
     //module reset itself!!! 
     printf("detected module reset\n");
+    core_log("module reset");
+    data_tx_status = TX_ERR_MODULE_RESET;
+  } else {
+    data_tx_status=TX_ERROR;
+    core_log("TX error:");
+    core_log((char*)resp_buf);
+    data_tx_status = TX_ERROR;
   }
-  data_tx_status=TX_ERROR;
   //free memory
   core_free(cmd);
-  return -1;
+  return data_tx_status;
 }
 
 int wifi_send_cmd(const char* cmd, const char* resp_complete,

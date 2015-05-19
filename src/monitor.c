@@ -29,6 +29,9 @@ power_pkt *cur_pkt, *tx_pkt;
 //data structure for wemo configuration
 config wemo_config;
 
+//system tick, keeps things running
+uint8_t sys_tick=0;
+
 //Functions that *request* data from an outside server must register
 //a callback that core_process_wifi_data calls when data is received
 void (*tx_callback)(char*);
@@ -529,6 +532,10 @@ void core_transmit_power_packet(power_pkt *wemo_pkt){
     wemo_pkt->status = POWER_PKT_EMPTY; //just dump the packet
     core_get_nilm_ip_addr();
     break;
+  case TX_ERR_MODULE_RESET:
+    wifi_init(); //re-initialize WiFi on reset error
+  case TX_ERROR: //just fall through and register the failure
+  case TX_TIMEOUT:
   default:
     wemo_pkt->status = POWER_PKT_TX_FAIL;
   }
@@ -643,16 +650,33 @@ core_usb_enable(uint8_t port, bool b_enable){
     printf("Wattsworth WEMO(R) Plug v1.0\n");
     printf("  [help] for more information\n");
     printf("> ");
+    rgb_led_set(0,0,255);
   } 
   else {
     b_usb_enabled = false;
+    rgb_led_set(0,255,0);
   }
 }
 
 void core_putc(void* stream, char c){
+  //only wait 2 systicks and then give up
+  static uint8_t locked = false; //prevent re-entrant
+  int prev_tick; //prevent deadlock when USB isn't connected (bad disconnect)
+  if(locked)
+    return; //udc spinlock is not re-entrant
+  prev_tick = sys_tick; //grab the current sys_tick
   if(b_usb_enabled && wemo_config.echo){
-    while(!udi_cdc_is_tx_ready());
+    locked = true; //enter spin
+    while(!udi_cdc_is_tx_ready()){
+      if(sys_tick>(prev_tick+1)){ //check if we timeout
+	core_usb_enable(0,false); //turn off USB
+	locked = false;
+	return;
+      }
+    }
+    //success, got USB TX ready signal
     udi_cdc_write_buf(&c,1);
+    locked = false; //release
   }
 }
 
@@ -663,7 +687,7 @@ void core_putc(void* stream, char c){
  * This is the core loop
  * Uses a tick to schedule operations
  *****************/
-uint8_t sys_tick=0;
+
 
 
 void monitor(void){
@@ -725,13 +749,20 @@ void monitor(void){
   wifi_rx_buf_full = false;
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
   while (1) {
+    //***** SYS TICK ACTIONS ******
+    if(sys_tick!=prev_tick){
+      //check if there is a valid wemo sample
+      if(wemo_sample.valid==true && b_wifi_enabled){
+	core_log_power_data(&wemo_sample);
+      }
+      wemo_read_power();
+      wdt_restart(WDT);
+      prev_tick = sys_tick;
+    }
     //try to send a packet if we are using WiFi
     if(tx_pkt->status==POWER_PKT_READY && b_wifi_enabled){
       core_transmit_power_packet(tx_pkt);
       if(tx_pkt->status==POWER_PKT_TX_FAIL){
-	printf("resetting wifi\n");
-	core_log("resetting wifi");
-	wifi_init();
 	//try again (only time for 2 tries)
 	tx_pkt->status=POWER_PKT_READY;
 	core_transmit_power_packet(tx_pkt);
@@ -754,11 +785,6 @@ void monitor(void){
 	printf("\r> "); //print the prompt
       cmd_buf_full=false;
     }
-    //reset watchdog
-    if(sys_tick!=prev_tick){
-      prev_tick=sys_tick;
-      wdt_restart(WDT);
-    }
   }
     
 }
@@ -767,12 +793,6 @@ void monitor(void){
 ISR(PWM_Handler)
 {
   sys_tick++;
-  //check if there is a valid wemo sample
-  if(wemo_sample.valid==true && b_wifi_enabled){
-    core_log_power_data(&wemo_sample);
-  }
-  //take a wemo reading
-  wemo_read_power();
   //clear the interrupt so we don't get stuck here
   pwm_channel_get_interrupt_status(PWM);  
 }
