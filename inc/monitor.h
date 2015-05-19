@@ -5,6 +5,9 @@
 
 void monitor(void);
 
+//Firmware version string
+#define VERSION_STR "v1.0"
+
 //general purpose backup regs and wdt
 #define WDT_PERIOD       15000 //~8 secs
 
@@ -14,6 +17,12 @@ void monitor(void);
 #define RELAY_PIN  PIO_PA13_IDX
 #define BUTTON_PIN PIO_PB14_IDX
 #define VBUS_PIN   PIO_PB13_IDX
+
+//debug levels
+#define DEBUG_ALL 5   //--not used--
+#define DEBUG_INFO 4  //wifi dump
+#define DEBUG_WARN 3  //--not used--
+#define DEBUG_ERROR 2 //--not used--
 
 //Wemo in-memory config datastructure
 //Read from file system on boot
@@ -28,6 +37,7 @@ typedef struct config_struct {
   char nilm_ip_addr[MAX_CONFIG_LEN];  //cached IP address of wattsworth owner
   char ip_addr[MAX_CONFIG_LEN];       //runtime config, currently assigned IP address
   uint8_t echo;                       //runtime config, echo USB chars
+  uint8_t debug_level;                //runtime config, higher level = more verbose
   bool standalone;                    //runtime boolean value of str_standalone
 } config;
 
@@ -45,6 +55,9 @@ int mon_config(int argc, char **argv);
 int mon_log(int argc, char **argv);
 int mon_restart(int argc, char **argv);
 int mon_memory(int argc, char **argv);
+int mon_wifi(int argc, char **argv);
+int mon_debug(int argc, char **argv);
+int mon_version(int argc, char **argv);
 
 //putc for stdout
 void core_putc(void* stream, char c);

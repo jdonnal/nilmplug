@@ -21,6 +21,7 @@ char *cmd_buf;
 int cmd_buf_idx = 0;
 bool cmd_buf_full = false; //flag when a command has been rx'd
 bool b_usb_enabled = false;
+bool b_wifi_enabled = true; 
 
 //ping pong packet structs for filling and transmitting
 power_pkt power_pkts[2];
@@ -47,7 +48,10 @@ static struct Command commands[] = {
   { "config", "get or set a config",mon_config},
   { "log", "read or clear the log", mon_log},
   { "memory", "show memory statistics", mon_memory},
-  { "restart", "restart [bootloader]", mon_restart}
+  { "restart", "restart [bootloader]", mon_restart},
+  { "wifi", "turn wifi on or off", mon_wifi},
+  { "debug", "set debug level 0-5", mon_debug},
+  { "version", "firmware info", mon_version}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -104,6 +108,53 @@ mon_rtc(int argc, char **argv){
     printf("bad arguments to rtc\n");
     return -1;
   }
+  return 0;
+}
+
+//set wifi ON or OFF
+int
+mon_wifi(int argc, char **argv){
+  if(argc!=2){
+    printf("specify [on] or [off]\n");
+    return -1;
+  }
+  if(strcmp(argv[1],"on")==0){
+    b_wifi_enabled = true;
+    if(wifi_init()!=0){
+      b_wifi_enabled=false;
+      printf("error starting wifi\n");
+    }
+    else{
+      //good to go! turn light green
+      rgb_led_set(0,125,30);
+      printf("wifi on\n");
+    }
+    return 0;
+  }
+  else if(strcmp(argv[1],"off")==0){
+    b_wifi_enabled = false;
+    printf("wifi off\n");
+    rgb_led_set(0,0,255);
+    return 0;
+  }
+  printf("specify [on] or [off]\n");
+  return -1;
+}
+
+//set or read debug level
+int
+mon_debug(int argc, char **argv){
+  if(argc==2){
+    wemo_config.debug_level=atoi(argv[1]);
+  }
+  printf("debug level: %d\n",wemo_config.debug_level);
+  return 0;
+}
+    
+//read the current firmware version
+int 
+mon_version(int argc, char **argv){
+  printf("\tFirmware [%s]\n\tDate: [%s %s]\n",VERSION_STR, __DATE__,__TIME__);
   return 0;
 }
 
@@ -167,6 +218,9 @@ mon_echo(int argc, char **argv){
 int
 mon_config(int argc, char **argv){
   int i;
+  bool b_tmp_echo; //override echo setting for config printout
+  char *conf_buf; 
+  int CONF_BUF_SIZE = MD_BUF_SIZE;
   //array of gettable configs and their values
   #define GETTABLE_CONFIG_SIZE 7
   char *gettable_configs[GETTABLE_CONFIG_SIZE]= {
@@ -199,8 +253,13 @@ mon_config(int argc, char **argv){
     //find the matching config
     for(i=0;i<GETTABLE_CONFIG_SIZE;i++){
       if(strstr(argv[2],gettable_configs[i])==argv[2]){
+	//override the echo setting 
+	b_tmp_echo = wemo_config.echo;
+	wemo_config.echo = true;
 	printf(gettable_config_vals[i]);
 	printf("\n");
+	//reset the echo setting
+	wemo_config.echo = b_tmp_echo;
 	return 0;
       }
     } //couldn't find config
@@ -213,23 +272,31 @@ mon_config(int argc, char **argv){
       //clear the specified config
       printf("specify a config and the value");
     }
+    //allocate memory
+    conf_buf=core_malloc(CONF_BUF_SIZE);
+    //read in the whole config, might have whitespace
+    for(i=3;i<argc;i++){
+      if(strlen(conf_buf)>0){ //insert whitespace btwn "args"
+	strcat(conf_buf," ");
+      }
+      if((strlen(argv[i])+strlen(conf_buf))>CONF_BUF_SIZE){
+	printf("requested value is too large to store\n");
+	return -1;
+      }
+      strcat(conf_buf,argv[i]);
+    }
     //find the matching config
     for(i=0;i<SETTABLE_CONFIG_SIZE;i++){
       if(strstr(argv[2],settable_configs[i])==argv[2]){
-	if(argc==4 && strlen(argv[3])>MAX_CONFIG_LEN){
+	if(strlen(conf_buf)>MAX_CONFIG_LEN){
 	  printf("requested value is too large to store\n");
 	  return -1;
 	}
 	//clear out the existing config
 	memset(settable_config_vals[i],0x0,MAX_CONFIG_LEN);
-	//save the config to the config struct, if no value is specified
-	//leave it cleared
-	if(argc==4)
-	  memcpy(settable_config_vals[i],argv[3],strlen(argv[3]));
-	//if echo is on, read back the result
-	if(wemo_config.echo){
-	  printf("Set [%s] to [%s]\n",argv[2],settable_config_vals[i]);
-	}
+	//save the config to the config struct
+	memcpy(settable_config_vals[i],conf_buf,strlen(conf_buf));
+	printf("Set [%s] to [%s]\n",argv[2],settable_config_vals[i]);
 	//save the new config
 	fs_write_config();
       }
@@ -583,7 +650,7 @@ core_usb_enable(uint8_t port, bool b_enable){
 }
 
 void core_putc(void* stream, char c){
-  if(b_usb_enabled){
+  if(b_usb_enabled && wemo_config.echo){
     while(!udi_cdc_is_tx_ready());
     udi_cdc_write_buf(&c,1);
   }
@@ -597,7 +664,7 @@ void core_putc(void* stream, char c){
  * Uses a tick to schedule operations
  *****************/
 uint8_t sys_tick=0;
-bool wifi_on = true; 
+
 
 void monitor(void){
   uint32_t prev_tick=0;
@@ -616,16 +683,24 @@ void monitor(void){
 
   //initialize runtime configs
   wemo_config.echo = false;
+  wemo_config.debug_level = DEBUG_ERROR;
+
   //check if we are on USB
   if(gpio_pin_is_high(VBUS_PIN)){
     rgb_led_set(0,30,200); //blue light
-    //don't use WiFi b/c we don't have the power
-    //    wifi_on=false;
+    //don't start wifi because we are configuring
+    b_wifi_enabled=false;
   }
   //check if reset is pressed
   if(gpio_pin_is_low(BUTTON_PIN)){
-    //erase the config
-    //TODO
+    //erase the configs
+    memset(wemo_config.nilm_id,0x0,MAX_CONFIG_LEN);
+    memset(wemo_config.nilm_ip_addr,0x0,MAX_CONFIG_LEN);
+    memset(wemo_config.wifi_ssid,0x0,MAX_CONFIG_LEN);
+    memset(wemo_config.wifi_pwd,0x0,MAX_CONFIG_LEN);
+    //save the erased config
+    fs_write_config();
+    core_log("erased config");
     //spin until button is released
     while(gpio_pin_is_low(BUTTON_PIN)){
       rgb_led_set(255,255,0);
@@ -636,9 +711,9 @@ void monitor(void){
     rgb_led_set(255,255,0);
   }
   //setup WIFI
-  if(wifi_on){
+  if(b_wifi_enabled){
     if(wifi_init()!=0){
-      wifi_on=false;
+      b_wifi_enabled=false;
       rgb_led_set(125,0,125);
     }
     else{
@@ -651,7 +726,7 @@ void monitor(void){
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
   while (1) {
     //try to send a packet if we are using WiFi
-    if(tx_pkt->status==POWER_PKT_READY && wifi_on){
+    if(tx_pkt->status==POWER_PKT_READY && b_wifi_enabled){
       core_transmit_power_packet(tx_pkt);
       if(tx_pkt->status==POWER_PKT_TX_FAIL){
 	printf("resetting wifi\n");
@@ -693,7 +768,7 @@ ISR(PWM_Handler)
 {
   sys_tick++;
   //check if there is a valid wemo sample
-  if(wemo_sample.valid==true && wifi_on){
+  if(wemo_sample.valid==true && b_wifi_enabled){
     core_log_power_data(&wemo_sample);
   }
   //take a wemo reading

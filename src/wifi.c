@@ -28,8 +28,6 @@ int wifi_send_data(int ch, const char* data);
 
 int wifi_init(void){
   uint32_t BUF_SIZE = MD_BUF_SIZE;
-  int num_tries = 0;
-  uint32_t idx; //tmp variable for string indexing
   uint8_t tmp;  //dummy var for flushing UART
   char *buf;
   char *tx_buf;
@@ -92,7 +90,6 @@ int wifi_init(void){
     core_free(tx_buf);
     return -1;
   }
-  //  delay_ms(500);
   //set to mode STA
   if(wifi_send_cmd("AT+CWMODE=1","no change",buf,BUF_SIZE,1)==0){
     printf("Error setting ESP8266 mode\n");
@@ -100,32 +97,24 @@ int wifi_init(void){
     core_free(tx_buf);
     return 0;
   }
-  //  delay_ms(500);
-  while(num_tries<MAX_TRIES){
-    //try to join the specified network  
-    snprintf(tx_buf,BUF_SIZE,"AT+CWJAP=\"%s\",\"%s\"",
-	     wemo_config.wifi_ssid,wemo_config.wifi_pwd);
-    if(wifi_send_cmd(tx_buf,"OK",buf,BUF_SIZE,5)==0){
-      printf("no response to CWJAP\n");
-      num_tries++;
-      continue;
-    }
-    if(strstr(buf,"ERROR")==buf){
-      printf("error %d/%d joining network\n",num_tries,MAX_TRIES);
-      num_tries++;
-      continue;
-    } else {
-      break;
-    }
-  }
-  if(num_tries>=MAX_TRIES){
-  //log the failure
-    snprintf(buf,BUF_SIZE,"Could not join [%s]",wemo_config.wifi_ssid);
-    core_log(buf);
-    printf("error joinining [%s]\n",wemo_config.wifi_ssid);
-    //free the memory
-    core_free(tx_buf);
+  //try to join the specified network  
+  snprintf(tx_buf,BUF_SIZE,"AT+CWJAP=\"%s\",\"%s\"",
+	   wemo_config.wifi_ssid,wemo_config.wifi_pwd);
+  if(wifi_send_cmd(tx_buf,"OK",buf,BUF_SIZE,10)==0){
+    printf("no response to CWJAP\n");
+    //free memory
     core_free(buf);
+    core_free(tx_buf);
+    return -1;
+  }
+  //check for errors
+  if(strcmp(buf,"OK")!=0){
+    snprintf(tx_buf,BUF_SIZE,"failed to join network [%s]: [%s]\n",wemo_config.wifi_ssid, buf);
+    printf(tx_buf);
+    core_log(tx_buf);
+    //free memory
+    core_free(buf);
+    core_free(tx_buf);
     return -1;
   }
   //see if we have an IP address
@@ -137,27 +126,20 @@ int wifi_init(void){
     core_free(buf);
     return -1;
   }
+  //try to parse the response into an IP address
+  //expect 4 octets but *not* 0.0.0.0
+  int a1,a2,a3,a4;
+  if(!(sscanf(buf,"%d.%d.%d.%d",&a1,&a2,&a3,&a4)==4 && a1!=0)){
+    printf("error, bad address: %s\n",buf);
+    //free the memory
+    core_free(tx_buf);
+    core_free(buf);
+    return -1;
+  }
   //save the IP to our config
-  memset(wemo_config.ip_addr,0x0,30);
-  //make sure we have a valid ip
-  idx = (uint32_t)strstr(buf,"\r\n");
-  if(idx==0){
-    core_log("could not get IP address");
-    //free memory
-    core_free(tx_buf);
-    core_free(buf);
-    return -1;
-  }
-  //find the end of the IP address
-  idx -= (uint32_t)buf;
-  if(idx>MAX_CONFIG_LEN){
-    core_log("ip address too long for config buffer\n");
-    //free memory
-    core_free(tx_buf);
-    core_free(buf);
-    return -1;
-  }
-  memcpy(wemo_config.ip_addr,buf,idx);
+  snprintf(buf,BUF_SIZE,"%d.%d.%d.%d",a1,a2,a3,a4);
+  memset(wemo_config.ip_addr,0x0,MAX_CONFIG_LEN);
+  strcpy(wemo_config.ip_addr,buf);
   //set the mode to multiple connections
   wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
   //start a server on port 1336
@@ -354,6 +336,9 @@ ISR(UART0_Handler)
 
 
   usart_serial_getchar(WIFI_UART,&tmp);
+  //if debug level is high enough, print the char
+  if(wemo_config.debug_level>=DEBUG_INFO)
+    core_putc(NULL,tmp);
   //check whether this is a command response or 
   //new data from the web (unsollicted response)
   if(rx_wait && data_tx_status!=TX_PENDING){
