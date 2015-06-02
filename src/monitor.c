@@ -49,6 +49,7 @@ static struct Command commands[] = {
   { "relay", "turn relay on",mon_relay},
   { "echo", "turn echo on or off",mon_echo},
   { "config", "get or set a config",mon_config},
+  { "data", "view current meter reading", mon_data},
   { "log", "read or clear the log", mon_log},
   { "memory", "show memory statistics", mon_memory},
   { "restart", "restart [bootloader]", mon_restart},
@@ -307,7 +308,31 @@ mon_config(int argc, char **argv){
   }
   return 0;
 }
+//-----mon_data--------
+// Print the current meter
+// reading to the console
+//
+int 
+mon_data(int argc, char **argv){
+  float vrms  = (float)(cur_pkt->vrms[0])/1000.0;
+  float irms  = (float)(cur_pkt->irms[0])*7.77e-6;
+  float watts = (float)(cur_pkt->watts[0])/200.0;
+  float pavg  = (float)(cur_pkt->pavg[0])/200.0;
+  float freq  = (float)(cur_pkt->freq[0])/1000.0;
+  float pf    = (float)(cur_pkt->pf[0])/1000.0;
+  float kwh   = (float)(cur_pkt->kwh[0])/1000.0;
 
+  printf("________________\n");
+  printf("voltage | %0.2f\n",vrms);
+  printf("current | %0.2f\n",irms);
+  printf("watts   | %0.2f\n",watts);
+  printf("avg pwr | %0.2f\n",pavg);
+  printf("freq    | %0.2f\n",freq);
+  printf("pf      | %0.2f\n",pf);
+  printf("kwh     | %0.2f\n",kwh);
+
+  return 0;
+}
 int
 mon_log(int argc, char **argv){
   FIL fil;
@@ -439,22 +464,39 @@ void core_process_wifi_data(void){
   if(strcmp(buf,"relay_on")==0){
     gpio_set_pin_high(RELAY_PIN);
     printf("relay ON\n");
+    //return "OK" to indicate success
+    wifi_send_txt(0,"OK");
   }
   else if(strcmp(buf,"relay_off")==0){
     gpio_set_pin_low(RELAY_PIN);
     printf("relay OFF\n");
+    //return "OK" to indicate success
+    wifi_send_txt(0,"OK");
+  }
+  else if(strcmp(buf,"send_data")==0){
+    if(tx_pkt->status!=POWER_PKT_READY){
+      wifi_send_txt(0,"error: no data");
+    } else {
+      wifi_send_data(0,(uint8_t*)tx_pkt,sizeof(tx_pkt));
+      if(tx_pkt->status==POWER_PKT_TX_FAIL){
+	//try again (only time for 2 tries)
+	tx_pkt->status=POWER_PKT_READY;
+	wifi_send_data(0,(uint8_t*)tx_pkt,sizeof(tx_pkt));
+      }
+      //clear out the packet so we can start again
+      tx_pkt->status=POWER_PKT_EMPTY;
+      printf("sent data\n");
+    }
   }
   else{
     printf("unknown command: %s\n",buf);
-    wifi_send_data(0,"error: unknown command");
+    wifi_send_txt(0,"error: unknown command");
     //free memory
     core_free(buf);
     return;
   }
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
-  //return "OK" to indicate success
-  wifi_send_data(0,"OK");
   //free the memory
   core_free(buf);
   return;
@@ -472,7 +514,7 @@ void core_wifi_unlink(void){
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }
 
-void core_transmit_power_packet(power_pkt *wemo_pkt){
+void core_transmit_power_packet_http(power_pkt *wemo_pkt){
   int r, i, j;
   int TX_BUF_SIZE = XL_BUF_SIZE;
   int PAYLOAD_BUF_SIZE = XL_BUF_SIZE;
@@ -761,14 +803,7 @@ void monitor(void){
     }
     //try to send a packet if we are using WiFi
     if(tx_pkt->status==POWER_PKT_READY && b_wifi_enabled){
-      core_transmit_power_packet(tx_pkt);
-      if(tx_pkt->status==POWER_PKT_TX_FAIL){
-	//try again (only time for 2 tries)
-	tx_pkt->status=POWER_PKT_READY;
-	core_transmit_power_packet(tx_pkt);
-      }
-      //clear out the packet so we can start again
-      tx_pkt->status=POWER_PKT_EMPTY;
+      printf("old tx timer loop\n");
     }
     //check for pending data from the Internet
     if(wifi_rx_buf_full){

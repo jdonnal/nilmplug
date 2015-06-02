@@ -24,7 +24,7 @@ int data_tx_status = TX_IDLE;
 //   the buffer after the full flag is set
 uint32_t wifi_rx_buf_idx = 0;
 
-int wifi_send_data(int ch, const char* data);
+int wifi_send_ip(void);
 
 int wifi_init(void){
   uint32_t BUF_SIZE = MD_BUF_SIZE;
@@ -140,10 +140,12 @@ int wifi_init(void){
   snprintf(buf,BUF_SIZE,"%d.%d.%d.%d",a1,a2,a3,a4);
   memset(wemo_config.ip_addr,0x0,MAX_CONFIG_LEN);
   strcpy(wemo_config.ip_addr,buf);
-  //set the mode to multiple connections
+  //set the mode to multiple connection
   wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
   //start a server on port 1336
   wifi_send_cmd("AT+CIPSERVER=1,1336","OK",buf,BUF_SIZE,2);
+  //send our IP address to our NILM
+  wifi_send_ip();
   //log the event
   snprintf(buf,BUF_SIZE,"Joined [%s] with IP [%s]",
 	   wemo_config.wifi_ssid,wemo_config.ip_addr);
@@ -155,6 +157,31 @@ int wifi_init(void){
   return 0;
 }
 
+int wifi_send_ip(void){
+  int TX_BUF_SIZE = LG_BUF_SIZE;
+  int PAYLOAD_BUF_SIZE = LG_BUF_SIZE;
+  int r;
+  char *tx_buf,*payload_buf;
+  tx_buf = core_malloc(TX_BUF_SIZE);
+  payload_buf = core_malloc(PAYLOAD_BUF_SIZE);
+  snprintf(payload_buf,PAYLOAD_BUF_SIZE,
+	   "{\"serial_number\":\"%s\",\"ip_addr\":\"%s\"}",
+	   wemo_config.serial_number,wemo_config.ip_addr);
+  snprintf(tx_buf,TX_BUF_SIZE,
+	   "POST /config/plugs/update HTTP/1.1\r\n"
+	   "User-Agent: WemoPlug\r\n"
+	   "Host: NILM\r\nAccept:*/*\r\n"
+	   "Connection: keep-alive\r\n"
+	   "Content-Type: application/json\r\n"
+	   "Content-Length: %d\r\n"
+	   "\r\n%s",
+	   strlen(payload_buf),payload_buf);
+  //send the packet!
+  r = wifi_transmit(wemo_config.nilm_ip_addr,80,tx_buf);
+  core_free(tx_buf);
+  core_free(payload_buf);
+  return r;
+}
 int wifi_transmit(char *url, int port, char *data){
   int BUF_SIZE = MD_BUF_SIZE;
   char *cmd;
@@ -192,7 +219,7 @@ int wifi_transmit(char *url, int port, char *data){
     return TX_ERROR;
   }
   //send the data
-  if((r=wifi_send_data(4,data))!=0){
+  if((r=wifi_send_txt(4,data))!=0){
     printf("error transmitting data: %d\n",data_tx_status);
     core_free(cmd);
     core_free(buf);
@@ -206,13 +233,16 @@ int wifi_transmit(char *url, int port, char *data){
   return r; //success!
 }
 
-int wifi_send_data(int ch, const char* data){
+int wifi_send_txt(int ch, const char* data){
+  return wifi_send_data(ch,(uint8_t*)data,strlen(data));
+}
+int wifi_send_data(int ch, const uint8_t* data, int size){
   int cmd_buf_size = MD_BUF_SIZE;
   char *cmd;
   int timeout = 5; //wait 5 seconds to transmit the data
   //allocate memory
   cmd = core_malloc(cmd_buf_size);
-  snprintf(cmd,cmd_buf_size,"AT+CIPSEND=%d,%d\r\n",ch,strlen(data));
+  snprintf(cmd,cmd_buf_size,"AT+CIPSEND=%d,%d\r\n",ch,size);
   data_tx_status=TX_PENDING;
   rx_wait=true;
   resp_buf_idx = 0;
@@ -220,7 +250,7 @@ int wifi_send_data(int ch, const char* data){
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE); //to make debugging easier
   wifi_rx_buf_idx=0;
   usart_serial_write_packet(WIFI_UART,(uint8_t*)cmd,strlen(cmd));
-  usart_serial_write_packet(WIFI_UART,(uint8_t*)data,strlen(data));
+  usart_serial_write_packet(WIFI_UART,(uint8_t*)data,size);
   //now wait for the data to be sent
   while(timeout>0){
     //start the timer

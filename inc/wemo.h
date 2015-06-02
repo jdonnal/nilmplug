@@ -2,10 +2,8 @@
 #define __SERVER_H__
 
 #define PKT_SIZE 10
-#define PKT_TIMESTAMP_BUF_SIZE 50
+#define PKT_TIMESTAMP_BUF_SIZE 15
 typedef struct power_pkt_struct {
-  uint8_t status;             //struct valid flag
-  char timestamp[PKT_TIMESTAMP_BUF_SIZE]; //YYMMDD HH:MM:ss
   int32_t vrms[PKT_SIZE];     //RMS voltage
   int32_t irms[PKT_SIZE];     //RMS current
   int32_t watts[PKT_SIZE];    //watts
@@ -13,6 +11,8 @@ typedef struct power_pkt_struct {
   int32_t freq[PKT_SIZE];     //Line frequency
   int32_t pf[PKT_SIZE];       //Power factor
   int32_t kwh[PKT_SIZE];      //kWh since turn on
+  uint8_t status;             //struct valid flag
+  char timestamp[PKT_TIMESTAMP_BUF_SIZE]; //YYMMDD HH:MM:ss
 } power_pkt;
 
 
