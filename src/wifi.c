@@ -334,7 +334,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete,
   resp_buf[resp_buf_idx]=0x0;
   //remove any ECHO
   if(strstr((char*)resp_buf,cmd)!=(char*)resp_buf){
-    printf("bad echo\n");
+    printf("bad echo: %s\n",resp_buf);
     return 0;
   } 
   rx_start = strlen(cmd);

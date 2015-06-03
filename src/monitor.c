@@ -474,10 +474,11 @@ void core_process_wifi_data(void){
     wifi_send_txt(0,"OK");
   }
   else if(strcmp(buf,"send_data")==0){
-    if(tx_pkt->status!=POWER_PKT_READY){
+    if(false){//tx_pkt->status!=POWER_PKT_READY){
       wifi_send_txt(0,"error: no data");
     } else {
-      wifi_send_data(0,(uint8_t*)tx_pkt,sizeof(tx_pkt));
+      memset(tx_pkt,'a',sizeof(*tx_pkt));
+      wifi_send_data(0,(uint8_t*)tx_pkt,sizeof(*tx_pkt));
       if(tx_pkt->status==POWER_PKT_TX_FAIL){
 	//try again (only time for 2 tries)
 	tx_pkt->status=POWER_PKT_READY;
@@ -802,9 +803,9 @@ void monitor(void){
       prev_tick = sys_tick;
     }
     //try to send a packet if we are using WiFi
-    if(tx_pkt->status==POWER_PKT_READY && b_wifi_enabled){
+    /*    if(tx_pkt->status==POWER_PKT_READY && b_wifi_enabled){
       printf("old tx timer loop\n");
-    }
+      }*/
     //check for pending data from the Internet
     if(wifi_rx_buf_full){
       core_process_wifi_data();
