@@ -458,6 +458,8 @@ ISR(UART0_Handler)
     }
     if(wifi_rx_buf_idx>=WIFI_RX_BUF_SIZE){
       printf("too much data, wifi_rx_buf full!\n");
+      //empty the buffer
+      wifi_rx_buf_idx = 0;
       return; //ERROR!!!!
     }
     //store the data in the rx buffer
@@ -500,3 +502,6 @@ ISR(UART0_Handler)
     }
   }
 }
+
+
+//****NOTE: error when startup misses a character so wifi_rx_buf is out of sync**
