@@ -421,9 +421,7 @@ mon_memory(int argc, char **argv){
 
 void core_process_wifi_data(void){
   int BUF_SIZE=XL_BUF_SIZE;
-  //  int CMD_BUF_SIZE = MD_BUF_SIZE;
   char *buf;
-  char *cmd_buf;
   int chan_num, data_size, r;
   //match against the data
   if(strlen(wifi_rx_buf)>BUF_SIZE){
@@ -462,36 +460,38 @@ void core_process_wifi_data(void){
       tx_callback=NULL;
     }
   }
+  ///////////////////
   //this data must be inbound to the server port, process the command
+  //
+  //     RELAY ON
   if(strcmp(buf,"relay_on")==0){
     gpio_set_pin_high(RELAY_PIN);
     printf("relay ON\n");
     //return "OK" to indicate success
     wifi_send_txt(0,"OK");
   }
+  //     RELAY OFF
   else if(strcmp(buf,"relay_off")==0){
     gpio_set_pin_low(RELAY_PIN);
     printf("relay OFF\n");
     //return "OK" to indicate success
     wifi_send_txt(0,"OK");
   }
+  //     SEND DATA
   else if(strcmp(buf,"send_data")==0){
-    if(false){//tx_pkt->status!=POWER_PKT_READY){
+    if(tx_pkt->status!=POWER_PKT_READY){
       r = wifi_send_txt(chan_num,"error: no data");
       if(r==TX_ERR_MODULE_RESET)
 	while(wifi_init()!=0); //fail!!! anger!!!! reset the module
     } else {
+      //send the data
       r=wifi_send_raw(chan_num,(uint8_t*)tx_pkt,sizeof(*tx_pkt));
       if(r==TX_ERR_MODULE_RESET){
 	while(wifi_init()!=0); //fail!! anger!!! reset the module
       } else {
-      //clear out the packet so we can start again
+	//clear out the packet so we can start again
+	memset(tx_pkt,0,sizeof(*tx_pkt));
 	tx_pkt->status=POWER_PKT_EMPTY;
-	//close the port
-	cmd_buf = core_malloc(CMD_BUF_SIZE);
-	snprintf(cmd_buf,CMD_BUF_SIZE,"AT+CIPCLOSE=%d",chan_num);
-	//wifi_send_cmd(cmd_buf,"OK",buf,BUF_SIZE,4);
-	core_free(cmd_buf);
 	printf("sent data\n");
       }
     }
@@ -624,6 +624,14 @@ void core_log_power_data(power_sample *sample){
     break;
   case POWER_PKT_READY:
     printf("Transmit this packet first!\n");
+    //see if the other buffer is ready, if so set this up for
+    //transmission and start filling the other one
+    if(tx_pkt->status==POWER_PKT_EMPTY){
+      tmp_pkt = cur_pkt;
+      cur_pkt = tx_pkt;
+      tx_pkt = tmp_pkt;
+      wemo_sample_idx = 0;
+    }
     return;
   }
   cur_pkt->status = POWER_PKT_FILLING;

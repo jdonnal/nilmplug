@@ -50,7 +50,7 @@ int main(void) {
   pwm_channel_t channel = {
     .channel = 0,
     .ul_duty = 0,
-    .ul_period = 5000, //sample every 5 seconds
+    .ul_period = 2000, //sample every 2 seconds
     .ul_prescaler = PWM_CMR_CPRE_CLKA,
     .polarity = PWM_HIGH,
   };

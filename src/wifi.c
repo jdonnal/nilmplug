@@ -275,7 +275,7 @@ int wifi_send_data(int ch, const uint8_t* data, int size){
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE); //to make debugging easier
   wifi_rx_buf_idx=0;
   usart_serial_write_packet(WIFI_UART,(uint8_t*)cmd,strlen(cmd));
-  delay_s(1);
+  delay_ms(250); //wait for module to be ready to accept data
   usart_serial_write_packet(WIFI_UART,(uint8_t*)data,size);
   //now wait for the data to be sent
   while(timeout>0){
@@ -468,7 +468,6 @@ ISR(UART0_Handler)
       if(rx_bytes_recvd==rx_bytes_expected){
 	//data is ready for processing, set flag so main loop 
 	//runs core_process_wifi_data
-	printf("processing packet!\n");
 	wifi_rx_buf_full=true;
 	wifi_rx_buf_idx=0;
 	rx_in_prog = false; 
@@ -482,9 +481,6 @@ ISR(UART0_Handler)
       if(sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%c",&rx_chan,&rx_bytes_expected,&dummy)==3){
 	rx_in_prog = true;
 	rx_bytes_recvd  = 1; //reset the RX counter so we know when we have all the data
-	//wifi_rx_buf[0]=dummy; //save the first char (collected by sscanf)
-	//wifi_rx_buf_idx = 1; //dump the AT header- only collect data
-	printf("Expecting %d bytes on chan %d\n",rx_bytes_expected,rx_chan);
 	return;
       }
       //check for link and unlink
