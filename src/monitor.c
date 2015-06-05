@@ -421,7 +421,9 @@ mon_memory(int argc, char **argv){
 
 void core_process_wifi_data(void){
   int BUF_SIZE=XL_BUF_SIZE;
+  //  int CMD_BUF_SIZE = MD_BUF_SIZE;
   char *buf;
+  char *cmd_buf;
   int chan_num, data_size, r;
   //match against the data
   if(strlen(wifi_rx_buf)>BUF_SIZE){
@@ -475,23 +477,28 @@ void core_process_wifi_data(void){
   }
   else if(strcmp(buf,"send_data")==0){
     if(false){//tx_pkt->status!=POWER_PKT_READY){
-      wifi_send_txt(0,"error: no data");
+      r = wifi_send_txt(chan_num,"error: no data");
+      if(r==TX_ERR_MODULE_RESET)
+	while(wifi_init()!=0); //fail!!! anger!!!! reset the module
     } else {
-      memset(tx_pkt,'a',sizeof(*tx_pkt));
-      wifi_send_data(0,(uint8_t*)tx_pkt,sizeof(*tx_pkt));
-      if(tx_pkt->status==POWER_PKT_TX_FAIL){
-	//try again (only time for 2 tries)
-	tx_pkt->status=POWER_PKT_READY;
-	wifi_send_data(0,(uint8_t*)tx_pkt,sizeof(tx_pkt));
-      }
+      r=wifi_send_raw(chan_num,(uint8_t*)tx_pkt,sizeof(*tx_pkt));
+      if(r==TX_ERR_MODULE_RESET){
+	while(wifi_init()!=0); //fail!! anger!!! reset the module
+      } else {
       //clear out the packet so we can start again
-      tx_pkt->status=POWER_PKT_EMPTY;
-      printf("sent data\n");
+	tx_pkt->status=POWER_PKT_EMPTY;
+	//close the port
+	cmd_buf = core_malloc(CMD_BUF_SIZE);
+	snprintf(cmd_buf,CMD_BUF_SIZE,"AT+CIPCLOSE=%d",chan_num);
+	wifi_send_cmd(cmd_buf,"OK",buf,BUF_SIZE,4);
+	core_free(cmd_buf);
+	printf("sent data\n");
+      }
     }
   }
   else{
     printf("unknown command: %s\n",buf);
-    wifi_send_txt(0,"error: unknown command");
+    wifi_send_txt(chan_num,"error: unknown command");
     //free memory
     core_free(buf);
     return;
@@ -630,10 +637,12 @@ void core_log_power_data(power_sample *sample){
   wemo_sample_idx++;
   if(wemo_sample_idx==PKT_SIZE){
     cur_pkt->status=POWER_PKT_READY;
-    //switch buffers
-    tmp_pkt = cur_pkt;
-    cur_pkt = tx_pkt;
-    tx_pkt = tmp_pkt;
+    //see if we can switch buffers
+    if(tx_pkt->status==POWER_PKT_EMPTY){
+      tmp_pkt = cur_pkt;
+      cur_pkt = tx_pkt;
+      tx_pkt = tmp_pkt;
+    }
     //start filling the new buffer
     wemo_sample_idx = 0;
   }
@@ -750,7 +759,7 @@ void monitor(void){
 
   //initialize runtime configs
   wemo_config.echo = false;
-  wemo_config.debug_level = DEBUG_ERROR;
+  wemo_config.debug_level = DEBUG_ALL;
 
   //check if we are on USB
   if(gpio_pin_is_high(VBUS_PIN)){

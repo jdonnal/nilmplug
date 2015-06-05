@@ -26,5 +26,5 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete, char* resp,
 		  uint32_t maxlen, int timeout);
 
 int wifi_send_txt(int ch, const char* data);
-int wifi_send_data(int ch, const uint8_t* data, int size);
+int wifi_send_raw(int ch, const uint8_t* data, int size);
 #endif

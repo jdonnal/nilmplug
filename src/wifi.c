@@ -25,6 +25,7 @@ int data_tx_status = TX_IDLE;
 uint32_t wifi_rx_buf_idx = 0;
 
 int wifi_send_ip(void);
+int wifi_send_data(int ch, const uint8_t* data, int size);
 
 int wifi_init(void){
   uint32_t BUF_SIZE = MD_BUF_SIZE;
@@ -145,7 +146,9 @@ int wifi_init(void){
   //start a server on port 1336
   wifi_send_cmd("AT+CIPSERVER=1,1336","OK",buf,BUF_SIZE,2);
   //send our IP address to our NILM
-  wifi_send_ip();
+  if(wifi_send_ip()==TX_ERR_MODULE_RESET){
+    return TX_ERR_MODULE_RESET;
+  }
   //log the event
   snprintf(buf,BUF_SIZE,"Joined [%s] with IP [%s]",
 	   wemo_config.wifi_ssid,wemo_config.ip_addr);
@@ -233,13 +236,35 @@ int wifi_transmit(char *url, int port, char *data){
   return r; //success!
 }
 
+//**** These are the accessor functions to transmit data ***//
 int wifi_send_txt(int ch, const char* data){
-  return wifi_send_data(ch,(uint8_t*)data,strlen(data));
+  return wifi_send_raw(ch,(uint8_t*)data,strlen(data));
 }
+
+int wifi_send_raw(int ch, const uint8_t* data, int size){
+  int BUFFER_SIZE=100;
+  int i=0;
+  int r;
+  char *tx_buf;
+  tx_buf = core_malloc(MD_BUF_SIZE);
+
+  for(i=0;i<size;i+=BUFFER_SIZE){
+    if(i+BUFFER_SIZE<size)
+      r=wifi_send_data(ch,&data[i],BUFFER_SIZE);
+    else
+      r=wifi_send_data(ch,&data[i],size-i);
+    if(r!=TX_SUCCESS)
+      return r; //fail!
+  }
+  core_free(tx_buf);
+  return r;
+}
+
+//*** Private method that actually sends data ***//
 int wifi_send_data(int ch, const uint8_t* data, int size){
   int cmd_buf_size = MD_BUF_SIZE;
   char *cmd;
-  int timeout = 5; //wait 5 seconds to transmit the data
+  int timeout = 7; //wait 7 seconds to transmit the data
   //allocate memory
   cmd = core_malloc(cmd_buf_size);
   snprintf(cmd,cmd_buf_size,"AT+CIPSEND=%d,%d\r\n",ch,size);
