@@ -130,7 +130,7 @@ int wifi_init(void){
   //try to parse the response into an IP address
   //expect 4 octets but *not* 0.0.0.0
   int a1,a2,a3,a4;
-  if(!(sscanf(buf,"%d.%d.%d.%d",&a1,&a2,&a3,&a4)==4 && a1!=0)){
+  if(!(sscanf(buf,"+CIFSR:STAIP,\"%d.%d.%d.%d\"",&a1,&a2,&a3,&a4)==4 && a1!=0)){
     printf("error, bad address: %s\n",buf);
     //free the memory
     core_free(tx_buf);
@@ -195,12 +195,12 @@ int wifi_transmit(char *url, int port, char *data){
   buf = core_malloc(BUF_SIZE);
   //sometimes the port stays open, so check for both
   //conditions
-  char *success_str = "OK";
+  char *success_str = "4,CONNECT";
   char *connected_str = "ALREAY CONNECT"; //sic
   //open a TCP connection on channel 4
   snprintf(cmd,BUF_SIZE,"AT+CIPSTART=4,\"TCP\",\"%s\",%d",
 	  url,port);
-  wifi_send_cmd(cmd,"Linked",buf,100,5);
+  wifi_send_cmd(cmd,"4,CONNECT",buf,100,5);
   //check if we are able to connect to the NILM
   if(strstr(buf,"ERROR\r\nUnlink")==buf){
     printf("can't connect to NILM\n");
@@ -242,7 +242,7 @@ int wifi_send_txt(int ch, const char* data){
 }
 
 int wifi_send_raw(int ch, const uint8_t* data, int size){
-  int BUFFER_SIZE=100;
+  int BUFFER_SIZE=1000;
   int i=0;
   int r;
   char *tx_buf;
@@ -275,6 +275,7 @@ int wifi_send_data(int ch, const uint8_t* data, int size){
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE); //to make debugging easier
   wifi_rx_buf_idx=0;
   usart_serial_write_packet(WIFI_UART,(uint8_t*)cmd,strlen(cmd));
+  delay_s(1);
   usart_serial_write_packet(WIFI_UART,(uint8_t*)data,size);
   //now wait for the data to be sent
   while(timeout>0){
@@ -402,6 +403,13 @@ ISR(UART0_Handler)
 {
   uint8_t tmp, i;
 
+  //state machine vars for handling RX'd data
+  static int  rx_bytes_recvd = 0;
+  static bool rx_in_prog = false;
+  static int  rx_bytes_expected = 0;
+  static int rx_chan = 0;
+  char *action_buf;
+  int ACTION_BUF_SIZE = MD_BUF_SIZE;
 
   usart_serial_getchar(WIFI_UART,&tmp);
   //if debug level is high enough, print the char
@@ -452,32 +460,47 @@ ISR(UART0_Handler)
       printf("too much data, wifi_rx_buf full!\n");
       return; //ERROR!!!!
     }
+    //store the data in the rx buffer
     wifi_rx_buf[wifi_rx_buf_idx++]=(char)tmp;
-    //if we have a full line, send it to the server process
-    if(wifi_rx_buf_idx>=6){
-      //check for link 
-      if((strstr(wifi_rx_buf,"Link\r\n")==wifi_rx_buf) ||
-	 (strstr(wifi_rx_buf,"Linked\r\n")==wifi_rx_buf)){
-	core_wifi_link();
-	wifi_rx_buf_idx=0;
-	return;
-      }
-      //check for unlink
-      if(strstr(wifi_rx_buf,"Unlink\r\n")==wifi_rx_buf){
-	core_wifi_unlink();
-	wifi_rx_buf_idx=0;
-	return;
-      }
-      //check for data
-      if(strstr(&wifi_rx_buf[wifi_rx_buf_idx-6],"\r\nOK\r\n")==
-	 &wifi_rx_buf[wifi_rx_buf_idx-6]){
+    //if a reception is in progress...
+    if(rx_in_prog){
+      rx_bytes_recvd++;
+      if(rx_bytes_recvd==rx_bytes_expected){
 	//data is ready for processing, set flag so main loop 
 	//runs core_process_wifi_data
+	printf("processing packet!\n");
 	wifi_rx_buf_full=true;
 	wifi_rx_buf_idx=0;
+	rx_in_prog = false; 
 	return;
       }
+    }  
+    //otherwise check for control sequences....
+    if(wifi_rx_buf_idx>=6 && !rx_in_prog){
+      //check for incoming data
+      char dummy;
+      if(sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%c",&rx_chan,&rx_bytes_expected,&dummy)==3){
+	rx_in_prog = true;
+	rx_bytes_recvd  = 1; //reset the RX counter so we know when we have all the data
+	//wifi_rx_buf[0]=dummy; //save the first char (collected by sscanf)
+	//wifi_rx_buf_idx = 1; //dump the AT header- only collect data
+	printf("Expecting %d bytes on chan %d\n",rx_bytes_expected,rx_chan);
+	return;
+      }
+      //check for link and unlink
+      action_buf = core_malloc(ACTION_BUF_SIZE);
+      if(sscanf(wifi_rx_buf,"%d,%s\r\n",&rx_chan,action_buf)==2){
+	if(strcmp(action_buf,"CONNECT")==0){
+	  core_wifi_link(rx_chan);
+	  wifi_rx_buf_idx=0;
+	}
+	if(strcmp(action_buf,"CLOSED")==0){
+	  core_wifi_unlink(rx_chan);
+	  wifi_rx_buf_idx=0;
+	}
+      }
+      core_free(action_buf);
+      return;
     }
-    //otherwise keep collecting data
   }
 }

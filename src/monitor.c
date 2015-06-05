@@ -490,7 +490,7 @@ void core_process_wifi_data(void){
 	//close the port
 	cmd_buf = core_malloc(CMD_BUF_SIZE);
 	snprintf(cmd_buf,CMD_BUF_SIZE,"AT+CIPCLOSE=%d",chan_num);
-	wifi_send_cmd(cmd_buf,"OK",buf,BUF_SIZE,4);
+	//wifi_send_cmd(cmd_buf,"OK",buf,BUF_SIZE,4);
 	core_free(cmd_buf);
 	printf("sent data\n");
       }
@@ -510,14 +510,14 @@ void core_process_wifi_data(void){
   return;
 }
 
-void core_wifi_link(void){
-  printf("linked!\n");
+void core_wifi_link(int ch){
+  printf("link on channel %d!\n",ch);
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }
 
-void core_wifi_unlink(void){
-  printf("unlinked\n");
+void core_wifi_unlink(int ch){
+  printf("unlinked channel %d\n",ch);
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }

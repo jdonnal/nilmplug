@@ -68,8 +68,8 @@ void core_putc(void* stream, char c);
 
 //   Incoming data from WiFi
 void core_process_wifi_data(void); // main loop
-void core_wifi_link(void);         // interrupt ctx
-void core_wifi_unlink(void);       // interrupt ctx
+void core_wifi_link(int ch);         // interrupt ctx
+void core_wifi_unlink(int ch);       // interrupt ctx
 //   Outgoing data to WiFi
 void core_get_nilm_ip_addr(void);
 void core_get_nilm_ip_addr_cb(char* data); //callback
