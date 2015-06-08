@@ -55,7 +55,8 @@ static struct Command commands[] = {
   { "restart", "restart [bootloader]", mon_restart},
   { "wifi", "turn wifi on or off", mon_wifi},
   { "debug", "set debug level 0-5", mon_debug},
-  { "version", "firmware info", mon_version}
+  { "version", "firmware info", mon_version},
+  { "led", "set the led", mon_led},
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -130,7 +131,7 @@ mon_wifi(int argc, char **argv){
     }
     else{
       //good to go! turn light green
-      rgb_led_set(0,125,30);
+      rgb_led_set(LED_LT_GREEN,0);
       printf("wifi on\n");
     }
     return 0;
@@ -138,7 +139,7 @@ mon_wifi(int argc, char **argv){
   else if(strcmp(argv[1],"off")==0){
     b_wifi_enabled = false;
     printf("wifi off\n");
-    rgb_led_set(0,0,255);
+    rgb_led_set(LED_BLUE,0);
     return 0;
   }
   printf("specify [on] or [off]\n");
@@ -162,6 +163,27 @@ mon_version(int argc, char **argv){
   return 0;
 }
 
+//set the RGB LED color and blink rate
+int
+mon_led(int argc, char **argv){
+  uint32_t blink;
+  uint8_t r,g,b;
+  if(argc!=5){
+    printf("usage: [red,green,blue,blink (ms)]\n");
+    return 1;
+  }
+  r = atoi(argv[1]);
+  g = atoi(argv[2]);
+  b = atoi(argv[3]);
+  blink = atoi(argv[4]);
+  if(blink !=0 && (blink<LED_MIN_BLINK_RATE || blink>LED_MAX_BLINK_RATE)){
+    printf("error, invalid blink rate please use [%d,%d]\n",
+	   LED_MIN_BLINK_RATE,LED_MAX_BLINK_RATE);
+    blink = 0;
+  }
+  rgb_led_set(r,g,b,blink);
+  return 0;
+}
 //set the relay and store the new state in 
 //the backup register in case of software reset
 int
@@ -391,9 +413,9 @@ mon_restart(int argc, char **argv){
     if(strcmp(argv[1],"bootloader")==0){
       //set the gpnvm bit to atmel bootloader
       efc_perform_command(EFC0, EFC_FCMD_CGPB, 1);
-      rgb_led_set(0,0,0);
+      rgb_led_set(LED_OFF,0);
       delay_ms(500);
-      rgb_led_set(128,128,128); //indicate bootloader mode set
+      rgb_led_set(LED_GRAY,0); //indicate bootloader mode set
     }
     else{
       printf("[bootloader] to reboot with Atmel bootloader\n");
@@ -710,11 +732,11 @@ core_usb_enable(uint8_t port, bool b_enable){
     printf("Wattsworth WEMO(R) Plug v1.0\n");
     printf("  [help] for more information\n");
     printf("> ");
-    rgb_led_set(0,0,255);
+    rgb_led_set(LED_BLUE,0);
   } 
   else {
     b_usb_enabled = false;
-    rgb_led_set(0,255,0);
+    rgb_led_set(LED_LT_GREEN,0);
   }
 }
 
@@ -771,7 +793,7 @@ void monitor(void){
 
   //check if we are on USB
   if(gpio_pin_is_high(VBUS_PIN)){
-    rgb_led_set(0,30,200); //blue light
+    rgb_led_set(LED_LT_BLUE,0); 
     //don't start wifi because we are configuring
     b_wifi_enabled=false;
   }
@@ -786,23 +808,19 @@ void monitor(void){
     fs_write_config();
     core_log("erased config");
     //spin until button is released
-    while(gpio_pin_is_low(BUTTON_PIN)){
-      rgb_led_set(255,255,0);
-      delay_ms(250);
-      rgb_led_set(0,0,0);
-      delay_ms(250);
-    }
-    rgb_led_set(255,255,0);
+    rgb_led_set(LED_ORANGE,500);
+    while(gpio_pin_is_low(BUTTON_PIN));
+    rgb_led_set(LED_ORANGE,0); //disable blink
   }
   //setup WIFI
   if(b_wifi_enabled){
     if(wifi_init()!=0){
       b_wifi_enabled=false;
-      rgb_led_set(125,0,125);
+      rgb_led_set(LED_PURPLE,0);
     }
     else{
       //good to go! turn light green
-      rgb_led_set(0,125,30);
+      rgb_led_set(LED_LT_GREEN,0);
     }
   }
   //initialize the wifi_rx buffer and flag
@@ -845,9 +863,28 @@ void monitor(void){
 //Priority 3 (lowest)
 ISR(PWM_Handler)
 {
-  sys_tick++;
-  //clear the interrupt so we don't get stuck here
-  pwm_channel_get_interrupt_status(PWM);  
+  int pwm_channel;
+  static bool led_on = false;
+  pwm_channel = pwm_channel_get_interrupt_status(PWM);  
+  pwm_channel &= (0xF);
+  //check for systick  
+  if((pwm_channel&(1<<0))==(1<<0)){
+    sys_tick++;
+  }
+  //check for LED PWM
+  if((pwm_channel&(1<<1))==(1<<1)){
+    if(led_on){
+      rgb_led_write(0,0,0);
+      led_on = false;
+    } else{
+      rgb_led_write(led_color.red,led_color.green,led_color.blue);
+      led_on = true;
+    }
+  }
+  //make sure there are no unexpected PWM interrupts
+  if((pwm_channel&(~0x3))!=0x0){
+    printf("unknown pwm source: %d\n",pwm_channel);
+  }
 }
 
 void
@@ -923,7 +960,7 @@ runcmd(char *buf)
 //  set light red, spin forever
 void 
 core_panic(void){
-  rgb_led_set(255,0,0);
+  rgb_led_set(LED_RED,250);
   while(1);
 }
 

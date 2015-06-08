@@ -32,7 +32,7 @@ int main(void) {
   //initialize GPIO
   io_init();
   rgb_led_init();
-  rgb_led_set(242,222,68);
+  rgb_led_set(LED_DK_GREEN,0);
   usb_init();
   i2c_rtc_init();
   fs_init(); //file system (config and logging)

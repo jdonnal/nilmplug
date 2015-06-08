@@ -59,6 +59,7 @@ int mon_memory(int argc, char **argv);
 int mon_wifi(int argc, char **argv);
 int mon_debug(int argc, char **argv);
 int mon_version(int argc, char **argv);
+int mon_led(int argc, char **argv);
 
 //putc for stdout
 void core_putc(void* stream, char c);

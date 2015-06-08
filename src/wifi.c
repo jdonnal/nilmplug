@@ -500,7 +500,7 @@ ISR(UART0_Handler)
       //if wifi_rx_buf is longer than 20 chars we must be out of sync, look for \r\n sequence
       //and flush the buffer
       if(wifi_rx_buf_idx>20){
-	if(strcmp(wifi_rx_buf[wifi_rx_buf_idx-2],"\r\n")==0){
+	if(strcmp(&wifi_rx_buf[wifi_rx_buf_idx-2],"\r\n")==0){
 	  wifi_rx_buf_idx = 0; 
 	  printf("flushed wifi_rx_buf, out of sync\n");
 	}

@@ -71,11 +71,53 @@ static void inline write_zero(void)
 
 void rgb_led_init(void){
   gpio_configure_pin(RGB_LED_PIN, PIO_OUTPUT_0);
-  //turn the LED off
-  rgb_led_set(0,0,0); 
+  //set up blink interrupt with PWM
+  //PWM module configured by monitor init
+  pwm_channel_t channel = {
+    .channel = LED_PWM_CHANNEL,
+    .ul_duty = 0,
+    .ul_period = 1000, //blink every second
+    .ul_prescaler = PWM_CMR_CPRE_CLKA,
+    .polarity = PWM_HIGH,
+  };
+  pwm_channel_init(PWM, &channel);
+  //                enable interrupts on overflow
+  pwm_channel_disable_interrupt(PWM,LED_PWM_CHANNEL,LED_PWM_CHANNEL);
+  pwm_channel_disable(PWM,LED_PWM_CHANNEL);
+
+  rgb_led_set(LED_OFF,0); 
 };
 
-void rgb_led_set(uint8_t r_orig, uint8_t g_orig, uint8_t b_orig){
+void rgb_led_set(uint8_t r, uint8_t g, uint8_t b, uint32_t blink){
+  led_color.red = r;
+  led_color.green = g;
+  led_color.blue = b;
+  //set the LED
+  rgb_led_write(r,g,b);
+  //only allow blinking at 10Hz - every ten seconds
+  if(blink!=0 && (blink<LED_MIN_BLINK_RATE || blink > LED_MAX_BLINK_RATE)){
+    printf("invalid blink rate, ignoring");
+    blink = 0;
+  }
+  //disable the blink timer
+  pwm_channel_disable(PWM,LED_PWM_CHANNEL);
+  pwm_channel_disable_interrupt(PWM,LED_PWM_CHANNEL,LED_PWM_CHANNEL);
+  //set blink timer for the specified rate (ms)
+  if(blink!=0){ 
+    pwm_channel_t channel = {
+      .channel = LED_PWM_CHANNEL,
+      .ul_duty = 0,
+      .ul_period = blink,
+      .ul_prescaler = PWM_CMR_CPRE_CLKA,
+      .polarity = PWM_HIGH,
+    };
+    pwm_channel_init(PWM, &channel);
+    pwm_channel_enable_interrupt(PWM,LED_PWM_CHANNEL,LED_PWM_CHANNEL);
+    pwm_channel_enable(PWM,LED_PWM_CHANNEL);
+  }
+}
+
+void rgb_led_write(uint8_t r_orig, uint8_t g_orig, uint8_t b_orig){
   uint8_t r,b,g;
   //gamma correction
   r = gamma_correct[r_orig];
