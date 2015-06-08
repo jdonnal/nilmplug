@@ -24,7 +24,7 @@ int data_tx_status = TX_IDLE;
 //   the buffer after the full flag is set
 uint32_t wifi_rx_buf_idx = 0;
 
-int wifi_send_ip(void);
+//int wifi_send_ip(void); **declared in header b/c monitor calls this when NILM IP addr changes
 int wifi_send_data(int ch, const uint8_t* data, int size);
 
 int wifi_init(void){
@@ -145,9 +145,15 @@ int wifi_init(void){
   wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
   //start a server on port 1336
   wifi_send_cmd("AT+CIPSERVER=1,1336","OK",buf,BUF_SIZE,2);
-  //send our IP address to our NILM
-  if(wifi_send_ip()==TX_ERR_MODULE_RESET){
-    return TX_ERR_MODULE_RESET;
+  //if we know the NILM IP address, send it our IP
+  if(strlen(wemo_config.nilm_ip_addr)!=0){
+    if(wifi_send_ip()==TX_ERR_MODULE_RESET){
+      return TX_ERR_MODULE_RESET;
+    }
+  } else {
+    //get the NILM IP address from the manager
+    //once we know the NILM address we send it ours
+    core_get_nilm_ip_addr();
   }
   //log the event
   snprintf(buf,BUF_SIZE,"Joined [%s] with IP [%s]",

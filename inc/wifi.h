@@ -27,4 +27,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete, char* resp,
 
 int wifi_send_txt(int ch, const char* data);
 int wifi_send_raw(int ch, const uint8_t* data, int size);
+
+int wifi_send_ip(void); //used internally but called by monitor.c when NILM IP addr is updated
+
 #endif

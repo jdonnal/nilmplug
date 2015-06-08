@@ -1,7 +1,7 @@
 #ifndef __SERVER_H__
 #define __SERVER_H__
 
-#define PKT_SIZE 10
+#define PKT_SIZE 30
 #define PKT_TIMESTAMP_BUF_SIZE 20
 typedef struct power_pkt_struct {
   int32_t vrms[PKT_SIZE];     //RMS voltage

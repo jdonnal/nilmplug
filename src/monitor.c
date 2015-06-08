@@ -468,19 +468,18 @@ void core_process_wifi_data(void){
   //function. The requesting core function registers a callback and this function calls
   //it and then resets the callback to NULL
   if(chan_num==4){
-    if(tx_callback==NULL){
-      //clear the server buffer
-      memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
-      //close the socket
-      wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,BUF_SIZE,1);
-      //free memory
-      core_free(buf);
-      return;
-    } else{
-      //execute the callback
+    //close the socket
+    wifi_send_cmd("AT+CIPCLOSE=4","Unlink",buf,BUF_SIZE,1);
+    //execute the callback
+    if(tx_callback!=NULL){
       (*tx_callback)(wifi_rx_buf);
       tx_callback=NULL;
     }
+    //clear the server buffer
+    memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+    //free memory
+    core_free(buf);
+    return;
   }
   ///////////////////
   //this data must be inbound to the server port, process the command
@@ -693,7 +692,7 @@ core_get_nilm_ip_addr(void){
   //allocate memory
   buf=core_malloc(BUF_SIZE);
   snprintf(buf,BUF_SIZE,
-	   "GET /nilm/get_ip?serial_number=%s HTTP/1.1\r\n"
+	   "GET /nilms/get_ip?serial_number=%s HTTP/1.1\r\n"
 	   "User-Agent: WemoPlug\r\n"
 	   "Host: %s\r\n"
 	   "Accept:*/*\r\n\r\n",
@@ -706,7 +705,29 @@ core_get_nilm_ip_addr(void){
 ////////////////////
 //callback function
 void core_get_nilm_ip_addr_cb(char* data){
-  printf("got the data!\n");
+  //find the IP address in the response
+  //expect 4 octets enclosed by double brackets: [[x.x.x.]]
+  int a1,a2,a3,a4;
+  char *buf, *resp_data;
+  int BUF_SIZE = MD_BUF_SIZE;
+  buf = core_malloc(BUF_SIZE);
+  resp_data = strrchr(data,'\n');
+  if(sscanf(resp_data,"\n<<%d.%d.%d.%d>>",&a1,&a2,&a3,&a4)!=4){
+    printf("error, bad address from manager\n");
+    core_free(buf);
+    return;
+  }
+  //save the IP to our config
+  snprintf(buf,BUF_SIZE,"%d.%d.%d.%d",a1,a2,a3,a4);
+  memset(wemo_config.nilm_ip_addr,0x0,MAX_CONFIG_LEN);
+  strcpy(wemo_config.nilm_ip_addr,buf);
+  //save the new config
+  fs_write_config();
+
+  //now send our IP to our NILM
+  wifi_send_ip();
+  //free the memory
+  core_free(buf);
 }
 
 ///////////////////
@@ -789,7 +810,7 @@ void monitor(void){
 
   //initialize runtime configs
   wemo_config.echo = false;
-  wemo_config.debug_level = DEBUG_ALL;
+  wemo_config.debug_level = DEBUG_ERROR;
 
   //check if we are on USB
   if(gpio_pin_is_high(VBUS_PIN)){
