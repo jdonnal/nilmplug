@@ -259,8 +259,10 @@ int wifi_send_raw(int ch, const uint8_t* data, int size){
       r=wifi_send_data(ch,&data[i],BUFFER_SIZE);
     else
       r=wifi_send_data(ch,&data[i],size-i);
-    if(r!=TX_SUCCESS)
+    if(r!=TX_SUCCESS){ //exit early
+      core_free(tx_buf);
       return r; //fail!
+    }
   }
   core_free(tx_buf);
   return r;
