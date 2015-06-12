@@ -21,7 +21,7 @@ void monitor(void);
 //debug levels
 #define DEBUG_ALL 5   //--not used--
 #define DEBUG_INFO 4  //wifi dump
-#define DEBUG_WARN 3  //--not used--
+#define DEBUG_WARN 3  //warning messages about TX status
 #define DEBUG_ERROR 2 //--not used--
 
 //Wemo in-memory config datastructure
@@ -60,6 +60,7 @@ int mon_wifi(int argc, char **argv);
 int mon_debug(int argc, char **argv);
 int mon_version(int argc, char **argv);
 int mon_led(int argc, char **argv);
+int mon_ls(int argc, char **argv);
 
 //putc for stdout
 void core_putc(void* stream, char c);

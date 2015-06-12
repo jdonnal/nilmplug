@@ -57,6 +57,7 @@ static struct Command commands[] = {
   { "debug", "set debug level 0-5", mon_debug},
   { "version", "firmware info", mon_version},
   { "led", "set the led", mon_led},
+  { "ls", "view files on SD Card", mon_ls}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -439,6 +440,11 @@ mon_memory(int argc, char **argv){
   printf("Smallest free block: %d bytes\n",membag_get_smallest_free_block_size());
   return 0;
 }
+
+int mon_ls(int argc, char **argv){
+  fs_info();
+  return 0;
+}
 /***** Core commands ****/
 
 void core_process_wifi_data(void){
@@ -644,7 +650,8 @@ void core_log_power_data(power_sample *sample){
     printf("Error, this packet failed TX and isn't clean\n");
     break;
   case POWER_PKT_READY:
-    printf("Transmit this packet first!\n");
+    if(wemo_config.debug_level>=DEBUG_WARN)
+      printf("Transmit this packet first!\n");
     //see if the other buffer is ready, if so set this up for
     //transmission and start filling the other one
     if(tx_pkt->status==POWER_PKT_EMPTY){
@@ -666,11 +673,18 @@ void core_log_power_data(power_sample *sample){
   wemo_sample_idx++;
   if(wemo_sample_idx==PKT_SIZE){
     cur_pkt->status=POWER_PKT_READY;
+    //save the packet to disk
+    fs_write_power_pkt(cur_pkt);
     //see if we can switch buffers
     if(tx_pkt->status==POWER_PKT_EMPTY){
       tmp_pkt = cur_pkt;
       cur_pkt = tx_pkt;
       tx_pkt = tmp_pkt;
+    } else {
+      //other buffer is being TX'd, erase this one and refill
+      cur_pkt->status=POWER_PKT_EMPTY;
+      if(wemo_config.debug_level>=DEBUG_WARN)
+	printf("dropped packet before TX'd\n");
     }
     //start filling the new buffer
     wemo_sample_idx = 0;
@@ -847,6 +861,7 @@ void monitor(void){
   //initialize the wifi_rx buffer and flag
   wifi_rx_buf_full = false;
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
+  fs_info();
   while (1) {
     //***** SYS TICK ACTIONS ******
     if(sys_tick!=prev_tick){

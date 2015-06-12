@@ -5,13 +5,12 @@
 #include "conf_membag.h"
 #include <string.h>
 
-
-
 FATFS fs;
 
 uint8_t fs_init(void){
   Ctrl_status status;
   FRESULT res;
+  FILINFO fno;
 
   //initialize the HSCMI controller
   sd_mmc_init();
@@ -31,6 +30,16 @@ uint8_t fs_init(void){
   if (FR_INVALID_DRIVE == res) {
     printf("[FAIL] res %d\r\n",res);
   }
+  //make sure we have a data directory
+  if((res=f_stat("/data",&fno))!=FR_OK){
+    if(res==FR_NO_FILE){ //create the directory
+      if((res=f_mkdir("/data")))
+	printf("[FAIL] could not make data dir\n");
+    } else {
+      printf("[FAIL] fstat %d\r\n",res);
+    }
+  }
+  
   //load the configs
   fs_read_config();
   
@@ -127,20 +136,65 @@ void fs_log(const char* content){
     printf("[FAIL] res %d\r\n", res);
   }
   //allocate memory
-  msg_buf = membag_alloc(buf_size);
-  if(msg_buf==NULL)
-    core_panic();
-  ts_buf = membag_alloc(buf_size);
-  if(ts_buf==NULL)
-    core_panic();
-  memset(msg_buf,0x0,buf_size);
-  memset(ts_buf,0x0,buf_size);
+  msg_buf = core_malloc(buf_size);
+  ts_buf = core_malloc(buf_size);
   rtc_get_time_str(ts_buf,buf_size);
   snprintf(msg_buf,buf_size,"[%s]: %s\n",ts_buf,content);
   f_write(&log_file,msg_buf,strlen(msg_buf),&len);
   //close the log file
   f_close(&log_file);
   //free memory
-  membag_free(msg_buf);
-  membag_free(ts_buf);
+  core_free(msg_buf);
+  core_free(ts_buf);
+  fs_write_power_pkt(NULL);
 }
+
+void fs_write_power_pkt(const power_pkt* pkt){
+
+  UINT len;
+  FIL data_file;
+  FRESULT res;
+
+  //open the data file
+  res = f_open(&data_file, LOG_FILE,
+	       FA_OPEN_ALWAYS | FA_WRITE);
+  /* Move to end of the file to append data */
+  res = f_lseek(&data_file, f_size(&data_file));
+  if (res != FR_OK) {
+    printf("[FAIL] res %d\r\n", res);
+  }
+  f_write(&data_file,pkt,sizeof(power_pkt),&len);
+  //close the data file
+  f_close(&data_file);
+}
+
+void fs_info(void){
+  //print out file and sizes
+  FRESULT res;
+  FILINFO fno;
+  DIR dir;
+  char *fn;  
+  char *ts_buf;
+  int TS_BUF_SIZE = MD_BUF_SIZE;
+  ts_buf = core_malloc(TS_BUF_SIZE);
+  res = f_opendir(&dir, "/");                       /* Open the directory */
+  if (res == FR_OK) {
+    for (;;) {
+      res = f_readdir(&dir, &fno);                   /* Read a directory item */
+      if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+      if (fno.fname[0] == '.') continue;             /* Ignore dot entry */
+      fn = fno.fname;
+      
+      snprintf(ts_buf,TS_BUF_SIZE,"%u/%02u/%02u, %02u:%02u",
+	       (fno.fdate >> 9) + 1980, fno.fdate >> 5 & 15, fno.fdate & 31,
+	       fno.ftime >> 11, fno.ftime >> 5 & 63);
+	       
+      printf("%s %ld %s\n",fn,fno.fsize,ts_buf);
+    }
+  }
+  core_free(ts_buf);
+}
+
+
+
+

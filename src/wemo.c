@@ -110,8 +110,7 @@ ISR(UART1_Handler)
       usart_disable_interrupt(WEMO_UART, US_IER_RXRDY);
       //reset the index
       buf_idx=0;
-    } else { //failure, log it and look for the next packet
-      core_log("corrupt wemo data");
+    } else { //failure, look for the next packet
       buf_idx=0;
     }
     break;
