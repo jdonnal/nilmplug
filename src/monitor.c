@@ -49,15 +49,17 @@ static struct Command commands[] = {
   { "relay", "turn relay on",mon_relay},
   { "echo", "turn echo on or off",mon_echo},
   { "config", "get or set a config",mon_config},
-  { "data", "view current meter reading", mon_data},
+  { "meter", "view current meter reading", mon_meter},
   { "log", "read or clear the log", mon_log},
+  { "data", "read or clear the data", mon_data},
   { "memory", "show memory statistics", mon_memory},
   { "restart", "restart [bootloader]", mon_restart},
   { "wifi", "turn wifi on or off", mon_wifi},
   { "debug", "set debug level 0-5", mon_debug},
   { "version", "firmware info", mon_version},
   { "led", "set the led", mon_led},
-  { "ls", "view files on SD Card", mon_ls}
+  { "ls", "view files on SD Card", mon_ls},
+  { "collect_data", "start or stop power logging", mon_collect_data}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -331,12 +333,18 @@ mon_config(int argc, char **argv){
   }
   return 0;
 }
-//-----mon_data--------
+//-----mon_meter--------
 // Print the current meter
 // reading to the console
 //
 int 
-mon_data(int argc, char **argv){
+mon_meter(int argc, char **argv){
+  if(!wemo_config.collect_data){
+    printf("Error, not collecting data\n");
+    return -1;
+  }
+  printf("**this data may be up to a minute behind**\n");
+
   float vrms  = (float)(cur_pkt->vrms[0])/1000.0;
   float irms  = (float)(cur_pkt->irms[0])*7.77e-6;
   float watts = (float)(cur_pkt->watts[0])/200.0;
@@ -369,21 +377,19 @@ mon_log(int argc, char **argv){
   }
   if(strcmp(argv[1],"read")==0){
     //allocate the line buffer
-    line_buf = membag_alloc(line_buf_size);
-    if(line_buf==NULL)
-      core_panic();
+    line_buf = core_malloc(line_buf_size);
     //print the log out to STDOUT
     fr = f_open(&fil, LOG_FILE, FA_READ);
     if(fr){
       printf("error reading log: %d\n",(int)fr);
-      membag_free(line_buf);
+      core_free(line_buf);
       return -1;
     }
     while(f_gets(line_buf, line_buf_size, &fil)){
       printf("%s",line_buf);
     }
     f_close(&fil);
-    membag_free(line_buf);
+    core_free(line_buf);
     return 0;
   }
   else if(strcmp(argv[1],"erase")==0){
@@ -407,6 +413,59 @@ mon_log(int argc, char **argv){
   return 0;
 }
 
+int mon_data(int argc, char **argv){
+  FIL fil;
+  power_pkt pkt; 
+  FRESULT fr; 
+  UINT r;
+  if(argc!=2){
+    printf("specify [read] or [erase]\n");
+    return -1;
+  }
+  if(strcmp(argv[1],"read")==0){
+    //print the data out to STDOUT
+    fr = f_open(&fil, DATA_FILE, FA_READ);
+    if(fr){
+      printf("error reading data: %d\n",(int)fr);
+      return -1;
+    }
+    while(f_read(&fil, &pkt, sizeof(pkt), &r)){
+      if(r!=sizeof(pkt)){
+	core_log("corrupt data buffer");
+	break;
+      }
+      while(!udi_cdc_is_tx_ready()); //wait for buffer
+      //data is binary so write directly to the USB buffer
+      udi_cdc_write_buf(&pkt,sizeof(pkt));
+    }
+    f_close(&fil);
+
+    memset(&pkt,'x',sizeof(pkt));  //set up termination string
+    while(!udi_cdc_is_tx_ready()); //wait for buffer
+    udi_cdc_write_buf(&pkt,sizeof(pkt)); //send it
+
+    return 0;
+  }
+  else if(strcmp(argv[1],"erase")==0){
+    fr = f_open(&fil, DATA_FILE, FA_WRITE);
+    if(fr){
+      printf("error erasing data: %d\n", (int)fr);
+      return -1;
+    }
+    f_lseek(&fil,0);
+    f_truncate(&fil);
+    f_close(&fil);
+    if(wemo_config.echo)
+      printf("erased data\n");
+    return 0;
+  }
+  else{
+    printf("specify [read] or [erase]\n");
+    return -1;
+  }
+  //shouldn't get here
+  return 0;
+}
 int 
 mon_restart(int argc, char **argv){
   if(argc==2){
@@ -443,6 +502,26 @@ mon_memory(int argc, char **argv){
 
 int mon_ls(int argc, char **argv){
   fs_info();
+  return 0;
+}
+
+int mon_collect_data(int argc, char **argv){
+  if(argc!=2){
+    printf("specify [true] or [false]\n");
+    return -1;
+  }
+  if(strcmp(argv[1],"true")==0){
+    if(!wemo_config.collect_data && wemo_config.echo)
+      printf("data collection started\n");
+    wemo_config.collect_data = true;
+  } else if(strcmp(argv[1],"false")==0){
+    if(wemo_config.collect_data && wemo_config.echo)
+      printf("data collection stopped\n");
+    wemo_config.collect_data = false;
+  } else {
+    printf("error, specify [true] or [false]\n");
+    return -1;
+  }
   return 0;
 }
 /***** Core commands ****/
@@ -825,12 +904,15 @@ void monitor(void){
   //initialize runtime configs
   wemo_config.echo = false;
   wemo_config.debug_level = DEBUG_ERROR;
+  wemo_config.collect_data = true; //collect power data
 
   //check if we are on USB
   if(gpio_pin_is_high(VBUS_PIN)){
     rgb_led_set(LED_LT_BLUE,0); 
     //don't start wifi because we are configuring
     b_wifi_enabled=false;
+    //don't collect power data
+    wemo_config.collect_data = false;
   }
   //check if reset is pressed
   if(gpio_pin_is_low(BUTTON_PIN)){
@@ -861,12 +943,11 @@ void monitor(void){
   //initialize the wifi_rx buffer and flag
   wifi_rx_buf_full = false;
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
-  fs_info();
   while (1) {
     //***** SYS TICK ACTIONS ******
     if(sys_tick!=prev_tick){
       //check if there is a valid wemo sample
-      if(wemo_sample.valid==true && b_wifi_enabled){
+      if(wemo_sample.valid==true && wemo_config.collect_data){
 	core_log_power_data(&wemo_sample);
       }
       wemo_read_power();

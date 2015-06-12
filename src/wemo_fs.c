@@ -11,7 +11,13 @@ uint8_t fs_init(void){
   Ctrl_status status;
   FRESULT res;
   FILINFO fno;
-
+  DIR dir;
+  char *fn;  
+  char *filenames[] = {CONFIG_FILE,LOG_FILE,DATA_FILE};
+  int NUM_EXPECTED_FILES = 3;
+  static char lfn[_MAX_LFN + 1];  /* Buffer to store the LFN */
+  bool valid_file;
+  int i;
   //initialize the HSCMI controller
   sd_mmc_init();
   //install the SD Card
@@ -30,13 +36,27 @@ uint8_t fs_init(void){
   if (FR_INVALID_DRIVE == res) {
     printf("[FAIL] res %d\r\n",res);
   }
-  //make sure we have a data directory
-  if((res=f_stat("/data",&fno))!=FR_OK){
-    if(res==FR_NO_FILE){ //create the directory
-      if((res=f_mkdir("/data")))
-	printf("[FAIL] could not make data dir\n");
-    } else {
-      printf("[FAIL] fstat %d\r\n",res);
+  //make sure we only have the files we expect
+  fno.lfname = lfn;
+  fno.lfsize = sizeof lfn;  
+  
+  res = f_opendir(&dir, "/");                       /* Open the directory */
+  if (res == FR_OK) {
+    for (;;) {
+      res = f_readdir(&dir, &fno);                   /* Read a directory item */
+      if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+      if (fno.fname[0] == '.') continue;             /* Ignore dot entry */
+      fn = *fno.lfname ? fno.lfname : fno.fname;
+      valid_file = false;
+      for(i=0;i<NUM_EXPECTED_FILES;i++){
+	if(strcmp(filenames[i],fn)==0){
+	  valid_file = true;
+	  break;
+	}
+      }
+      if(!valid_file){
+	f_unlink(fn); //delete the file or directory
+      }
     }
   }
   
@@ -146,7 +166,6 @@ void fs_log(const char* content){
   //free memory
   core_free(msg_buf);
   core_free(ts_buf);
-  fs_write_power_pkt(NULL);
 }
 
 void fs_write_power_pkt(const power_pkt* pkt){
@@ -156,7 +175,7 @@ void fs_write_power_pkt(const power_pkt* pkt){
   FRESULT res;
 
   //open the data file
-  res = f_open(&data_file, LOG_FILE,
+  res = f_open(&data_file, DATA_FILE,
 	       FA_OPEN_ALWAYS | FA_WRITE);
   /* Move to end of the file to append data */
   res = f_lseek(&data_file, f_size(&data_file));
@@ -176,20 +195,27 @@ void fs_info(void){
   char *fn;  
   char *ts_buf;
   int TS_BUF_SIZE = MD_BUF_SIZE;
+  static char lfn[_MAX_LFN + 1];  /* Buffer to store the LFN */
+
   ts_buf = core_malloc(TS_BUF_SIZE);
+
+  fno.lfname = lfn;
+  fno.lfsize = sizeof lfn;  
+  
   res = f_opendir(&dir, "/");                       /* Open the directory */
+  printf("FILE \t\t SIZE (KB) \t DATE\n");
   if (res == FR_OK) {
     for (;;) {
       res = f_readdir(&dir, &fno);                   /* Read a directory item */
       if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
       if (fno.fname[0] == '.') continue;             /* Ignore dot entry */
-      fn = fno.fname;
+      fn = *fno.lfname ? fno.lfname : fno.fname;
       
-      snprintf(ts_buf,TS_BUF_SIZE,"%u/%02u/%02u, %02u:%02u",
-	       (fno.fdate >> 9) + 1980, fno.fdate >> 5 & 15, fno.fdate & 31,
+      snprintf(ts_buf,TS_BUF_SIZE,"%u/%02u/%02u %02u:%02u",
+	       (fno.fdate >> 9) + 1980-2000, fno.fdate >> 5 & 15, fno.fdate & 31,
 	       fno.ftime >> 11, fno.ftime >> 5 & 63);
 	       
-      printf("%s %ld %s\n",fn,fno.fsize,ts_buf);
+      printf("%s \t %ld \t %s\n",fn,(fno.fsize),ts_buf);
     }
   }
   core_free(ts_buf);

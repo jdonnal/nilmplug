@@ -39,6 +39,7 @@ typedef struct config_struct {
   uint8_t echo;                       //runtime config, echo USB chars
   uint8_t debug_level;                //runtime config, higher level = more verbose
   bool standalone;                    //runtime boolean value of str_standalone
+  bool collect_data;                  //runtime config to collect wemo data
 } config;
 
 extern config wemo_config;
@@ -52,8 +53,9 @@ int mon_rtc(int argc, char **argv);
 int mon_relay(int argc, char **argv);
 int mon_echo(int argc, char **argv);
 int mon_config(int argc, char **argv);
-int mon_data(int argc, char **argv);
+int mon_meter(int argc, char **argv);
 int mon_log(int argc, char **argv);
+int mon_data(int argc, char **argv);
 int mon_restart(int argc, char **argv);
 int mon_memory(int argc, char **argv);
 int mon_wifi(int argc, char **argv);
@@ -61,6 +63,7 @@ int mon_debug(int argc, char **argv);
 int mon_version(int argc, char **argv);
 int mon_led(int argc, char **argv);
 int mon_ls(int argc, char **argv);
+int mon_collect_data(int argc, char **argv);
 
 //putc for stdout
 void core_putc(void* stream, char c);

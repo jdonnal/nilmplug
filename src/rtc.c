@@ -62,7 +62,7 @@ void rtc_get_time_str(char* buf, int buf_size){
   uint32_t ul_hour, ul_minute, ul_second;
   rtc_get_date(NULL,&ul_year,&ul_month,&ul_day,&ul_week);
   rtc_get_time(NULL,&ul_hour,&ul_minute,&ul_second);
-  snprintf(buf,buf_size,"20%02lu-%02lu-%02lu %02lu:%02lu:%02lu",ul_year,ul_month,ul_day,
+  snprintf(buf,buf_size,"%02lu-%02lu-%02lu %02lu:%02lu:%02lu",ul_year,ul_month,ul_day,
 	  ul_hour,ul_minute,ul_second);
   return;
 }
@@ -88,7 +88,7 @@ void rtc_get_date(Rtc *p_rtc, uint32_t *ul_year, uint32_t *ul_month, uint32_t *u
   dw=bcd2int(rx_data[0]);
   dt=bcd2int(rx_data[1]);
   mo=bcd2int(rx_data[2]);
-  yr=bcd2int(rx_data[3]);
+  yr=bcd2int(rx_data[3])+2000;
   *ul_year = yr;
   *ul_month= mo;
   *ul_day = dt;
