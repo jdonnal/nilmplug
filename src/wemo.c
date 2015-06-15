@@ -44,6 +44,14 @@ void wemo_init(void){
 
 
 uint8_t process_sample(uint8_t *buffer){
+  //Read [NUM_REQRD_PKTS] with correct checksums,
+  //record the last packet's values, this reduces the 
+  //likelihood of a checksum match on a bad read
+  //***NOTE: bad reads still occur- maybe this is actually 
+  //         a glitch on the power meter chip?
+  uint8_t NUM_REQRD_PKTS = 2;
+  static uint8_t num_pkts = 0;
+
   //process 30 byte data packet buffer
   uint8_t checksum = 0;
   uint8_t bytes[3];
@@ -51,6 +59,7 @@ uint8_t process_sample(uint8_t *buffer){
   int i;
   //1.) check for header
   if(buffer[0]!=0xAE){
+    num_pkts = 0; //reset sequential packet counter
     return false;
   }
   //2.) compute checksum
@@ -58,8 +67,17 @@ uint8_t process_sample(uint8_t *buffer){
     checksum += buffer[i];
   }
   checksum = (~checksum)+1;
-  if(checksum!=buffer[29])
+  if(checksum!=buffer[29]){
+    num_pkts = 0; //reset sequential packet counter
     return false;
+  } else { //good checksum
+    num_pkts++;
+    if(num_pkts < NUM_REQRD_PKTS)
+      return false; //wait for NUM_REQRD_PKTS in a row
+    else //good to go, reset the counter and continue processing
+      num_pkts = 0;
+  }
+  
   //3.) Parse raw data into values
   //    Data is 3 byte signed LSB
   for(i=0;i<9;i++){
@@ -80,7 +98,7 @@ uint8_t process_sample(uint8_t *buffer){
   wemo_sample.freq   = vals[7];
   wemo_sample.kwh  = vals[8];
   //5.) Set the valid flag
-  wemo_sample.valid = true;
+  wemo_sample.valid = true; 
   //all done
   return true;
 };

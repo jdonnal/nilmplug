@@ -12,6 +12,7 @@ uint8_t fs_init(void);
 void fs_write_config(void);
 void fs_read_config(void);
 void fs_write_power_pkt(const power_pkt* pkt);
+void fs_erase_data(void);
 void fs_log(const char* content);
 void fs_info(void);
 #endif

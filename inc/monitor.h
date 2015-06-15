@@ -6,10 +6,11 @@
 void monitor(void);
 
 //Firmware version string
-#define VERSION_STR "v1.0"
+#define VERSION_STR "v1.1"
 
 //general purpose backup regs and wdt
 #define WDT_PERIOD       15000 //~8 secs
+#define MAX_DROPPED_PACKETS 3 //~3 minutes of no contact
 
 #define GPBR_RELAY_STATE GPBR4
 

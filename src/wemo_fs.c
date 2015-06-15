@@ -187,6 +187,20 @@ void fs_write_power_pkt(const power_pkt* pkt){
   f_close(&data_file);
 }
 
+//erase the data file
+void fs_erase_data(void){
+  FIL fil;
+  FRESULT fr;
+  fr = f_open(&fil, DATA_FILE, FA_WRITE);
+  if(fr){
+    printf("error erasing data: %d\n", (int)fr);
+    return;
+  }
+  f_lseek(&fil,0);
+  f_truncate(&fil);
+  f_close(&fil);
+}
+
 void fs_info(void){
   //print out file and sizes
   FRESULT res;

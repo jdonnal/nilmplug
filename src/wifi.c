@@ -145,6 +145,7 @@ int wifi_init(void){
   wifi_send_cmd("AT+CIPMUX=1","OK",buf,BUF_SIZE,2);
   //start a server on port 1336
   wifi_send_cmd("AT+CIPSERVER=1,1336","OK",buf,BUF_SIZE,2);
+
   //if we know the NILM IP address, send it our IP
   if(strlen(wemo_config.nilm_ip_addr)!=0){
     if(wifi_send_ip()==TX_ERR_MODULE_RESET){

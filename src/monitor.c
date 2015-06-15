@@ -429,7 +429,9 @@ int mon_data(int argc, char **argv){
       printf("error reading data: %d\n",(int)fr);
       return -1;
     }
-    while(f_read(&fil, &pkt, sizeof(pkt), &r)){
+    while(f_read(&fil, &pkt, sizeof(pkt), &r)==0){
+      if(r==0) //all done
+	break;
       if(r!=sizeof(pkt)){
 	core_log("corrupt data buffer");
 	break;
@@ -447,14 +449,7 @@ int mon_data(int argc, char **argv){
     return 0;
   }
   else if(strcmp(argv[1],"erase")==0){
-    fr = f_open(&fil, DATA_FILE, FA_WRITE);
-    if(fr){
-      printf("error erasing data: %d\n", (int)fr);
-      return -1;
-    }
-    f_lseek(&fil,0);
-    f_truncate(&fil);
-    f_close(&fil);
+    fs_erase_data();
     if(wemo_config.echo)
       printf("erased data\n");
     return 0;
@@ -530,6 +525,8 @@ void core_process_wifi_data(void){
   int BUF_SIZE=XL_BUF_SIZE;
   char *buf;
   int chan_num, data_size, r;
+  unsigned int red,green,blue, blink;
+
   //match against the data
   if(strlen(wifi_rx_buf)>BUF_SIZE){
     printf("can't process rx'd packet, too large\n");
@@ -546,8 +543,10 @@ void core_process_wifi_data(void){
     core_free(buf);
     return;
   }
-  printf("Got [%d] bytes on channel [%d]\n",
-    data_size, chan_num);
+
+  if(wemo_config.debug_level>DEBUG_INFO)
+    printf("Got [%d] bytes on channel [%d]\n",
+	   data_size, chan_num);
   //discard responses from the NILM to power logging packets, but keep the response
   //if another core function has requested some data, this is done with the callback 
   //function. The requesting core function registers a callback and this function calls
@@ -583,6 +582,17 @@ void core_process_wifi_data(void){
     //return "OK" to indicate success
     wifi_send_txt(0,"OK");
   }
+  //     LED SET
+  else if(strstr(buf,"set_led")==buf){
+    if(sscanf(buf,"set_led_%u_%u_%u_%u.",&red,&green,&blue,&blink)!=4){
+      core_log("corrupt led_set request");
+    } else {
+      rgb_led_set(red,green,blue,blink);
+      if(wemo_config.echo)
+	printf("set led: [%u, %u, %u, %u]\n",red,green,blue,blink);
+      wifi_send_txt(0,"OK");
+    }
+  }
   //     SEND DATA
   else if(strcmp(buf,"send_data")==0){
     if(tx_pkt->status!=POWER_PKT_READY){
@@ -598,7 +608,8 @@ void core_process_wifi_data(void){
 	//clear out the packet so we can start again
 	memset(tx_pkt,0,sizeof(*tx_pkt));
 	tx_pkt->status=POWER_PKT_EMPTY;
-	printf("sent data\n");
+	if(wemo_config.debug_level>=DEBUG_INFO)
+	  printf("sent data\n");
       }
     }
   }
@@ -617,13 +628,15 @@ void core_process_wifi_data(void){
 }
 
 void core_wifi_link(int ch){
-  printf("link on channel %d!\n",ch);
+  if(wemo_config.debug_level>=DEBUG_INFO)
+    printf("link on channel %d!\n",ch);
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }
 
 void core_wifi_unlink(int ch){
-  printf("unlinked channel %d\n",ch);
+  if(wemo_config.debug_level>=DEBUG_INFO)
+    printf("unlinked channel %d\n",ch);
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }
@@ -711,6 +724,7 @@ void core_transmit_power_packet_http(power_pkt *wemo_pkt){
 //     next buffer is not empty (still being TX'd)
 void core_log_power_data(power_sample *sample){
   static int wemo_sample_idx = 0;
+  static int dropped_pkt_count = 0; //reset wifi when this reaches MAX_DROPPED_PACKETS
   power_pkt *tmp_pkt;
   //check for error conditions
   switch(cur_pkt->status){
@@ -759,9 +773,18 @@ void core_log_power_data(power_sample *sample){
       tmp_pkt = cur_pkt;
       cur_pkt = tx_pkt;
       tx_pkt = tmp_pkt;
+      //reset dropped packet counter b/c successful transmission
+      dropped_pkt_count = 0;
     } else {
       //other buffer is being TX'd, erase this one and refill
       cur_pkt->status=POWER_PKT_EMPTY;
+      //if this happens [MAX_DROPPED_PACKETS] times in a row, reset the wifi
+      if(dropped_pkt_count++ > MAX_DROPPED_PACKETS){
+	dropped_pkt_count = 0;
+	core_log("no requests from NILM, resetting WiFi");
+	printf("no requests from NILM, resetting WiFi");
+	wifi_init();
+      }
       if(wemo_config.debug_level>=DEBUG_WARN)
 	printf("dropped packet before TX'd\n");
     }
@@ -924,6 +947,8 @@ void monitor(void){
     //save the erased config
     fs_write_config();
     core_log("erased config");
+    //erase the stored data 
+    
     //spin until button is released
     rgb_led_set(LED_ORANGE,500);
     while(gpio_pin_is_low(BUTTON_PIN));
@@ -932,7 +957,6 @@ void monitor(void){
   //setup WIFI
   if(b_wifi_enabled){
     if(wifi_init()!=0){
-      b_wifi_enabled=false;
       rgb_led_set(LED_PURPLE,0);
     }
     else{
@@ -954,10 +978,6 @@ void monitor(void){
       wdt_restart(WDT);
       prev_tick = sys_tick;
     }
-    //try to send a packet if we are using WiFi
-    /*    if(tx_pkt->status==POWER_PKT_READY && b_wifi_enabled){
-      printf("old tx timer loop\n");
-      }*/
     //check for pending data from the Internet
     if(wifi_rx_buf_full){
       core_process_wifi_data();

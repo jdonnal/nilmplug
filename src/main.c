@@ -85,13 +85,13 @@ int main(void) {
     core_log("general reset");
     break;
   default:
-    buf = membag_alloc(MD_BUF_SIZE);
+    buf = core_malloc(MD_BUF_SIZE);
     if(buf==NULL){
       core_log("out of memory!");
     } else {
       snprintf(buf,MD_BUF_SIZE,"unexpected reset code [%d]",(int)info);
       core_log(buf);
-      membag_free(buf);
+      core_free(buf);
     }
   }
   //-----------------     
@@ -111,7 +111,8 @@ void io_init(void){
   pmc_enable_periph_clk(ID_PIOB);
   
   //Relay
-  //restore relay state from backup register
+  //reset to ON
+  /*
   if(gpbr_read(GPBR_RELAY_STATE)==1){
     printf("relay starting on\n");
     gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_1);
@@ -120,6 +121,8 @@ void io_init(void){
     printf("relay starting off\n");
     gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
   }
+  */
+  gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_1);
 
   //VBUS
   gpio_configure_pin(VBUS_PIN, PIO_INPUT);
