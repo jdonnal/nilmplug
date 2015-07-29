@@ -44,22 +44,13 @@ void wemo_init(void){
 
 
 uint8_t process_sample(uint8_t *buffer){
-  //Read [NUM_REQRD_PKTS] with correct checksums,
-  //record the last packet's values, this reduces the 
-  //likelihood of a checksum match on a bad read
-  //***NOTE: bad reads still occur- maybe this is actually 
-  //         a glitch on the power meter chip?
-  uint8_t NUM_REQRD_PKTS = 2;
-  static uint8_t num_pkts = 0;
-
   //process 30 byte data packet buffer
   uint8_t checksum = 0;
   uint8_t bytes[3];
   int32_t vals[9];
   int i;
-  //1.) check for header
-  if(buffer[0]!=0xAE){
-    num_pkts = 0; //reset sequential packet counter
+  //1.) check for header and length
+  if(buffer[0]!=0xAE || buffer[1]!=0x1E){
     return false;
   }
   //2.) compute checksum
@@ -68,16 +59,10 @@ uint8_t process_sample(uint8_t *buffer){
   }
   checksum = (~checksum)+1;
   if(checksum!=buffer[29]){
-    num_pkts = 0; //reset sequential packet counter
+    core_log("bad checksum");
     return false;
-  } else { //good checksum
-    num_pkts++;
-    if(num_pkts < NUM_REQRD_PKTS)
-      return false; //wait for NUM_REQRD_PKTS in a row
-    else //good to go, reset the counter and continue processing
-      num_pkts = 0;
   }
-  
+
   //3.) Parse raw data into values
   //    Data is 3 byte signed LSB
   for(i=0;i<9;i++){
@@ -113,7 +98,7 @@ ISR(UART1_Handler)
 {
   uint8_t tmp;
   static uint8_t buf[30]; //30 byte packet
-  static uint8_t buf_idx;
+  static uint8_t buf_idx=0;
   usart_serial_getchar(WEMO_UART,&tmp);
   switch(buf_idx){
   case 0: //search for sync byte
@@ -132,6 +117,11 @@ ISR(UART1_Handler)
       buf_idx=0;
     }
     break;
+  case 1: //make sure the packet length is valid
+    if(tmp!=0x1E){
+      buf_idx = 0;
+      break;
+    } //else, add to buf
   default: //reading packet
     buf[buf_idx++]=tmp;
   }
