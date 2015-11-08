@@ -25,6 +25,12 @@ void monitor(void);
 #define DEBUG_WARN 3  //warning messages about TX status
 #define DEBUG_ERROR 2 //--not used--
 
+//calibration constants
+#define MIN_CAL_TIME 1000 //on/off time must be >= 1 sec
+#define CAL_PWM_CHANNEL 2
+#define ON 1
+#define OFF 0
+
 //Wemo in-memory config datastructure
 //Read from file system on boot
 #define MAX_CONFIG_LEN 30
@@ -33,6 +39,7 @@ typedef struct config_struct {
   char wifi_ssid[MAX_CONFIG_LEN];     //the wireless network to connect to
   char wifi_pwd[MAX_CONFIG_LEN];      //the network password (may be blank)
   char str_standalone[MAX_CONFIG_LEN];//true/false: whether to connect to a network
+
   char mgr_url[MAX_CONFIG_LEN];       //URL of managment node (www.wattsworth.net)
   char nilm_id[MAX_CONFIG_LEN];       //ID NILM owner (nilm9F59)
   char nilm_ip_addr[MAX_CONFIG_LEN];  //cached IP address of wattsworth owner
@@ -41,6 +48,12 @@ typedef struct config_struct {
   uint8_t debug_level;                //runtime config, higher level = more verbose
   bool standalone;                    //runtime boolean value of str_standalone
   bool collect_data;                  //runtime config to collect wemo data
+  char str_calibrate[MAX_CONFIG_LEN]; //true/false: whether to run in calibrate mode
+  char str_on_time[MAX_CONFIG_LEN];   //time (ms) to run load in calibration mode
+  char str_off_time[MAX_CONFIG_LEN];  //time (ms) to stop load in calibration mode
+  bool calibrate;                     //runtime config of str_calibrate
+  int cal_on_time;                    //runtime config of str_on_time
+  int cal_off_time;                   //runtime config of str_off_time
 } config;
 
 extern config wemo_config;
@@ -65,6 +78,7 @@ int mon_version(int argc, char **argv);
 int mon_led(int argc, char **argv);
 int mon_ls(int argc, char **argv);
 int mon_collect_data(int argc, char **argv);
+int mon_calibrate(int argc, char **argv);
 
 //putc for stdout
 void core_putc(void* stream, char c);
