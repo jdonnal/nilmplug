@@ -2,3 +2,7 @@ bin/*
 *~
 obj/*
 asf
+*.pyc
+*.o
+firmware/bin/*
+*#
