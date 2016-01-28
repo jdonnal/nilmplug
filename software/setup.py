@@ -32,7 +32,7 @@ except ImportError:
 import versioneer
 versioneer.versionfile_source = 'nilmplug/_version.py'
 versioneer.versionfile_build = 'nilmplug/_version.py'
-versioneer.tag_prefix = 'nilmtools-'
+versioneer.tag_prefix = 'nilmplug-'
 versioneer.parentdir_prefix = 'nilmplug-'
 
 # Hack to workaround logging/multiprocessing issue:
@@ -68,7 +68,7 @@ setup(name='nilmplug',
       entry_points = {
           'console_scripts': [
               'nilm-plug = nilmplug.demo:main',
-              'nilm-plug-cli = nilmplug.terminal:main',
+              'jim-term = nilmplug.terminal:main',
               ],
           },
       zip_safe = False,

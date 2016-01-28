@@ -1,20 +1,21 @@
 #!/usr/bin/python
 
-desc = """demo.py
-    John Donnal 2015
-    GPL v2 (see LICENSE)
+desc = """nilm-plug
 
-    This demonstrates some of the capabilities of the SmartEE plug control board
+    Command Line interaction with NILM Smart Plug
     
     Usage:
 
     1.) Control plug relay:
-        python demo.py --relay on  192.168.1.4
-        python demo.py --relay off 192.168.1.4
+        nilm-plug --relay on  192.168.1.4
+        nilm-plug --relay off 192.168.1.4
     2.) Read meter over WiFi, appending to a data file
-        python demo.py --read -f meter.dat 192.168.1.4
+        nilm-plug --read -f meter.dat 192.168.1.4
     3.) Download data over USB, appending to a data file
-        python demo.py --read --usb -f meter.dat /dev/ttyACM0
+        nilm-plug --read -f meter.dat /dev/ttyACM0
+    4.) Open command line interface with USB connected plug
+        nilm-plug --cli #/dev/NODE is optional when only one plug connected
+        nilm-plug --cli /dev/ttyACM0 #specify /dev/NODE for multiple plugs
 
     Data files created by this script are CSV formatted with the following columns
            ts | vrms | irms | watts | pavg | pf | freq | kwh 
@@ -28,6 +29,7 @@ desc = """demo.py
     freq | Line Frequency (Hz)
     kwh  | Energy used since plugged in (kWh)
 
+    John Donnal 2015
 ------------------------------------------------------------------------------
 
 """
@@ -37,6 +39,8 @@ import os
 import argparse
 import csv
 from plug import Plug
+
+FNULL = open(os.devnull,'w')
 
 def set_relay(device,value,usb):
     plg = Plug(device,usb)
@@ -76,47 +80,47 @@ if __name__ == "__main__":
             formatter_class = argparse.RawDescriptionHelpFormatter,
             description = desc)
  
-        parser.add_argument("--relay", action="store", choices=["on","off"],
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument("--relay", action="store", choices=["on","off"],
                            help="Set relay state")
-        parser.add_argument("--read", action="store_true",
+        group.add_argument("--read", action="store_true",
                             help="request meter data")
-        parser.add_argument("--usb", action="store_true", 
-                            help="plug connected by USB, specify device node, \
-                            *not* IPv4 address")
-        parser.add_argument("--erase", action="store_true", 
+        group.add_argument("--erase", action="store_true", 
                             help="erase data after reading (USB only)")
+        group.add_argument("--cli",action="store_true",
+                           help = "open plug command line interface (USB only)")
         parser.add_argument("--file",action="store",default="plug.dat",
                             help="destination file for meter data")
-        parser.add_argument("device", action="store",
+        parser.add_argument("device", action="store", default="/dev/smartplug",
+                            nargs='*',
                             help="Device: either a /dev/NODE or an IPv4 address")
         
         args = parser.parse_args()
         
-        #------validate the arguments-----
-        #make sure user selected [relay] or [read], not both
-        if(args.relay and args.read):
-            print("Error, specify [read] or [relay], not both")
-            exit(1)
-        #make sure either [relay] or [read] has been specified
-        if((args.relay==None) and (args.read==False)):
-            print("Error, specify [read] or [relay]")
-            exit(1)
-        #if usb is not selected, make sure device is an IP address
-        if(args.usb==False):
-            try:
-                socket.inet_aton(args.device)
-            except socket.error:
-                print("[%s] is not a valid IPv4 address"%args.device)
+        #check if the device looks like an IP address
+        try:
+            socket.inet_aton(args.device)
+            usb=False
+        except socket.error:
+            #not an IP address, see if its a device node
+            if(os.path.exists(args.device)):
+                usb = True
+            else:
+                print "Error: device [%s] not found"%args.device
                 exit(1)
         #make sure erase is only used if [usb] and [read] are specified
-        if(args.read and (not args.usb) and args.erase):
-            print("Warning, cannot erase data over wifi, connect with USB")
+        if((args.erase or args.cli) and (not usb)):
+            print("Error: cannot do this over wifi, connect with USB")
 
         #-----basic validation checks out, perform the requested action---
         if(args.relay):
-            set_relay(args.device,args.relay,usb=args.usb)
+            set_relay(args.device,args.relay,usb=usb)
         elif(args.read):
-            read_meter(args.device,args.file,usb=args.usb,erase=args.erase)
+            read_meter(args.device,args.file,usb=usb,erase=False)
+        elif(args.erase):
+            read_meter(args.device,FNULL,usb=True,erase=True)
+        elif(args.cli):
+            subprocess.call(["jim-term",args.device])
         else:
             print("Error: no action specified (shouldn't get here...)")
             exit(1)

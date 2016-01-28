@@ -24,6 +24,7 @@ import signal
 import fcntl
 import string
 import re
+import argparse
 
 # Need OS-specific method for getting keyboard input.
 if os.name == 'nt':
@@ -320,10 +321,8 @@ class Jimterm:
         sys.stdout.write(self.color.reset + "\n")
         self.console.cleanup()
 
-if __name__ == "__main__":
-    import argparse
-    import re
 
+def main():
     formatter = argparse.ArgumentDefaultsHelpFormatter
     description = ("Simple serial terminal that supports multiple devices.  "
                    "If more than one device is specified, device output is "
@@ -401,3 +400,6 @@ if __name__ == "__main__":
         term.print_header(nodes, bauds, sys.stderr)
 
     term.run()
+
+if __name__ == "__main__":
+    main()
