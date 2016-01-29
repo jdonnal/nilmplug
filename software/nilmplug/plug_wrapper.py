@@ -39,6 +39,7 @@ import os
 import argparse
 import csv
 from plug import Plug
+import terminal
 
 FNULL = open(os.devnull,'w')
 
@@ -92,7 +93,7 @@ if __name__ == "__main__":
         parser.add_argument("--file",action="store",default="plug.dat",
                             help="destination file for meter data")
         parser.add_argument("device", action="store", default="/dev/smartplug",
-                            nargs='*',
+                            nargs='?',
                             help="Device: either a /dev/NODE or an IPv4 address")
         
         args = parser.parse_args()
@@ -120,7 +121,7 @@ if __name__ == "__main__":
         elif(args.erase):
             read_meter(args.device,FNULL,usb=True,erase=True)
         elif(args.cli):
-            subprocess.call(["jim-term",args.device])
+            terminal.main(args.device)
         else:
             print("Error: no action specified (shouldn't get here...)")
             exit(1)
