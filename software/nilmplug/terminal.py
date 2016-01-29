@@ -25,7 +25,7 @@ import fcntl
 import string
 import re
 import argparse
-
+import pdb
 # Need OS-specific method for getting keyboard input.
 if os.name == 'nt':
     import msvcrt
@@ -361,9 +361,10 @@ def main(argv = None):
                        default=argparse.SUPPRESS,
                        help="Quote unprintable characters "
                        "(default, if stdout is a tty)")
-
-    args = parser.parse_args()
-
+    if(argv!=None):
+        args = parser.parse_args(argv.split())
+    else:
+        args = parser.parse_args()
     piped = not sys.stdout.isatty()
     raw = "raw" in args or (piped and "no_raw" not in args)
 

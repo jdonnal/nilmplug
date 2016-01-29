@@ -76,7 +76,7 @@ def read_meter(device,dest_file,usb,erase=False):
                 plg.erase_data()
                 print "\t erased data"
             print "All data retrieved, unplug smartee to reset"
-if __name__ == "__main__":
+def main():
         parser = argparse.ArgumentParser(
             formatter_class = argparse.RawDescriptionHelpFormatter,
             description = desc)
@@ -92,7 +92,7 @@ if __name__ == "__main__":
                            help = "open plug command line interface (USB only)")
         parser.add_argument("--file",action="store",default="plug.dat",
                             help="destination file for meter data")
-        parser.add_argument("device", action="store", default="/dev/smartplug",
+        parser.add_argument("device", action="store", default="/dev/smart_plug",
                             nargs='?',
                             help="Device: either a /dev/NODE or an IPv4 address")
         
@@ -107,7 +107,11 @@ if __name__ == "__main__":
             if(os.path.exists(args.device)):
                 usb = True
             else:
-                print "Error: device [%s] not found"%args.device
+                #if the default isn't found display custom error
+                if(args.device=="/dev/smart_plug"):
+                    print "Error: no smart plug found, specify IP address or /dev/NODE"
+                else:
+                    print "Error: device [%s] not found"%args.device
                 exit(1)
         #make sure erase is only used if [usb] and [read] are specified
         if((args.erase or args.cli) and (not usb)):
@@ -128,4 +132,5 @@ if __name__ == "__main__":
         
         exit(0)
 
-   
+if __name__ == "__main__":
+    main()
