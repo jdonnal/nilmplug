@@ -855,6 +855,9 @@ void
 core_get_nilm_ip_addr(void){
   int BUF_SIZE=MD_BUF_SIZE;
   char *buf;
+  //only do this if we have a manager URL
+  if(strlen(wemo_config.mgr_url)==0)
+    return;
   //allocate memory
   buf=core_malloc(BUF_SIZE);
   snprintf(buf,BUF_SIZE,

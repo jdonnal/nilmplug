@@ -26,6 +26,9 @@ uint32_t wifi_rx_buf_idx = 0;
 
 //int wifi_send_ip(void); **declared in header b/c monitor calls this when NILM IP addr changes
 int wifi_send_data(int ch, const uint8_t* data, int size);
+//try to set the baud to 9600 since they come from the factory at 115200
+int wifi_set_baud(void);
+
 
 int wifi_init(void){
   uint32_t BUF_SIZE = MD_BUF_SIZE;
@@ -89,10 +92,12 @@ int wifi_init(void){
     //free memory
     core_free(buf);
     core_free(tx_buf);
+    //if the baud rate was wrong try to set it to 9600
+    wifi_set_baud();
     return -1;
   }
   //set to mode STA
-  if(wifi_send_cmd("AT+CWMODE=1","no change",buf,BUF_SIZE,1)==0){
+  if(wifi_send_cmd("AT+CWMODE=1","OK",buf,BUF_SIZE,1)==0){
     printf("Error setting ESP8266 mode\n");
     core_free(buf);
     core_free(tx_buf);
@@ -101,15 +106,16 @@ int wifi_init(void){
   //try to join the specified network  
   snprintf(tx_buf,BUF_SIZE,"AT+CWJAP=\"%s\",\"%s\"",
 	   wemo_config.wifi_ssid,wemo_config.wifi_pwd);
-  if(wifi_send_cmd(tx_buf,"OK",buf,BUF_SIZE,10)==0){
+  if(wifi_send_cmd(tx_buf,"OK",buf,BUF_SIZE,20)==0){
     printf("no response to CWJAP\n");
     //free memory
     core_free(buf);
     core_free(tx_buf);
     return -1;
   }
-  //check for errors
-  if(strcmp(buf,"OK")!=0){
+  //make sure the response ends in OK
+  uint8_t len = strlen(buf);
+  if(len<2 || strcmp(&buf[len-2],"OK")!=0){
     snprintf(tx_buf,BUF_SIZE,"failed to join network [%s]: [%s]\n",wemo_config.wifi_ssid, buf);
     printf(tx_buf);
     core_log(tx_buf);
@@ -192,6 +198,33 @@ int wifi_send_ip(void){
   core_free(payload_buf);
   return r;
 }
+
+int wifi_set_baud(void){
+  core_log("setting ESP8266 baudrate to 9600");
+  //reconfigure UART for 115200
+  static usart_serial_options_t usart_options = {
+    .baudrate = 115200,
+    .charlength = WIFI_UART_CHAR_LENGTH,
+    .paritytype = WIFI_UART_PARITY,
+    .stopbits = WIFI_UART_STOP_BITS
+  };
+  //send baudrate command
+  char* cmd = "AT+CIOBAUD=9600";
+  usart_serial_init(WIFI_UART,&usart_options);
+  usart_serial_write_packet(WIFI_UART,(uint8_t*)cmd,strlen(cmd));
+  //terminate the command
+  usart_serial_putchar(WIFI_UART,'\r');
+  usart_serial_putchar(WIFI_UART,'\n');
+  //wait 1 second
+  tc_start(TC0, 0);	  
+  rx_wait=true; 
+  while(rx_wait);
+  //reconfigure UART for 9600
+  usart_options.baudrate = WIFI_UART_BAUDRATE;
+  usart_serial_init(WIFI_UART,&usart_options);
+
+}
+
 int wifi_transmit(char *url, int port, char *data){
   int BUF_SIZE = MD_BUF_SIZE;
   char *cmd;

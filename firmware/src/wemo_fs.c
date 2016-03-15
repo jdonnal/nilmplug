@@ -147,7 +147,7 @@ void fs_write_config(void){
     wemo_config.nilm_ip_addr,wemo_config.str_calibrate,wemo_config.str_on_time,
     wemo_config.str_off_time};
   //open the config file
-  res = f_open(&file,CONFIG_FILE, FA_WRITE);
+  res = f_open(&file,CONFIG_FILE, FA_WRITE | FA_OPEN_ALWAYS);
   if (res != FR_OK) {
     printf("Error opening config file: res %d\r\n", res);
     return;
