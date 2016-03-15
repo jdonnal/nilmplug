@@ -39,6 +39,7 @@ import os
 import argparse
 import csv
 from plug import Plug
+import terminal
 
 FNULL = open(os.devnull,'w')
 
@@ -75,7 +76,7 @@ def read_meter(device,dest_file,usb,erase=False):
                 plg.erase_data()
                 print "\t erased data"
             print "All data retrieved, unplug smartee to reset"
-if __name__ == "__main__":
+def main():
         parser = argparse.ArgumentParser(
             formatter_class = argparse.RawDescriptionHelpFormatter,
             description = desc)
@@ -91,8 +92,8 @@ if __name__ == "__main__":
                            help = "open plug command line interface (USB only)")
         parser.add_argument("--file",action="store",default="plug.dat",
                             help="destination file for meter data")
-        parser.add_argument("device", action="store", default="/dev/smartplug",
-                            nargs='*',
+        parser.add_argument("device", action="store", default="/dev/smart_plug",
+                            nargs='?',
                             help="Device: either a /dev/NODE or an IPv4 address")
         
         args = parser.parse_args()
@@ -106,7 +107,11 @@ if __name__ == "__main__":
             if(os.path.exists(args.device)):
                 usb = True
             else:
-                print "Error: device [%s] not found"%args.device
+                #if the default isn't found display custom error
+                if(args.device=="/dev/smart_plug"):
+                    print "Error: no smart plug found, specify IP address or /dev/NODE"
+                else:
+                    print "Error: device [%s] not found"%args.device
                 exit(1)
         #make sure erase is only used if [usb] and [read] are specified
         if((args.erase or args.cli) and (not usb)):
@@ -120,11 +125,12 @@ if __name__ == "__main__":
         elif(args.erase):
             read_meter(args.device,FNULL,usb=True,erase=True)
         elif(args.cli):
-            subprocess.call(["jim-term",args.device])
+            terminal.main(args.device)
         else:
             print("Error: no action specified (shouldn't get here...)")
             exit(1)
         
         exit(0)
 
-   
+if __name__ == "__main__":
+    main()

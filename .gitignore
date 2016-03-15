@@ -6,3 +6,8 @@ asf
 *.o
 firmware/bin/*
 *#
+software/MANIFEST.in
+software/*.egg-info
+software/MANIFEST
+software/build
+software/dist

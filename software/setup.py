@@ -33,7 +33,7 @@ import versioneer
 versioneer.versionfile_source = 'nilmplug/_version.py'
 versioneer.versionfile_build = 'nilmplug/_version.py'
 versioneer.tag_prefix = 'nilmplug-'
-versioneer.parentdir_prefix = 'nilmplug-'
+versioneer.parentdir_prefix = ''#nilmplug-'
 
 # Hack to workaround logging/multiprocessing issue:
 # https://groups.google.com/d/msg/nose-users/fnJ-kAUbYHQ/_UsLN786ygcJ
@@ -67,7 +67,7 @@ setup(name='nilmplug',
                    ],
       entry_points = {
           'console_scripts': [
-              'nilm-plug = nilmplug.demo:main',
+              'nilm-plug = nilmplug.plug_wrapper:main',
               'jim-term = nilmplug.terminal:main',
               ],
           },

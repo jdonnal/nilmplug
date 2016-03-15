@@ -25,7 +25,7 @@ import fcntl
 import string
 import re
 import argparse
-
+import pdb
 # Need OS-specific method for getting keyboard input.
 if os.name == 'nt':
     import msvcrt
@@ -322,7 +322,7 @@ class Jimterm:
         self.console.cleanup()
 
 
-def main():
+def main(argv = None):
     formatter = argparse.ArgumentDefaultsHelpFormatter
     description = ("Simple serial terminal that supports multiple devices.  "
                    "If more than one device is specified, device output is "
@@ -333,7 +333,7 @@ def main():
 
     parser.add_argument("device", metavar="DEVICE", nargs="+",
                         help="Serial device.  Specify DEVICE@BAUD for "
-                        "per-device baudrates." default="/dev/smartplug")
+                        "per-device baudrates.")
 
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Don't print header")
@@ -361,9 +361,10 @@ def main():
                        default=argparse.SUPPRESS,
                        help="Quote unprintable characters "
                        "(default, if stdout is a tty)")
-
-    args = parser.parse_args()
-
+    if(argv!=None):
+        args = parser.parse_args(argv.split())
+    else:
+        args = parser.parse_args()
     piped = not sys.stdout.isatty()
     raw = "raw" in args or (piped and "no_raw" not in args)
 
