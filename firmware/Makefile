@@ -15,13 +15,15 @@ LFLAGS  = $(CFLAGS) -T$(@:bin/%.elf=$(LD_SCRIPT))
 LFLAGS += -Wl,--entry=Reset_Handler -Wl,--gc-sections
 
 # Targets
-.PHONY: all clean gdb
+.PHONY: all clean gdb flash
 .SECONDARY: $(OBJ)
 all: bin/flash.bin bin/flash.elf
 clean:
 	-rm -rf obj bin
 gdb: bin/flash.elf
 	@arm-none-eabi-gdb
+flash: bin/flash.elf
+	@arm-none-eabi-gdb -x flash.gdb
 bin/%.bin: bin/%.elf
 	arm-none-eabi-objcopy -O binary $< $@
 bin/%.hex: bin/%.elf
