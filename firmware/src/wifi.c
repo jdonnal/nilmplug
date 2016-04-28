@@ -94,7 +94,7 @@ int wifi_init(void){
     core_free(buf);
     core_free(tx_buf);
     //if the baud rate was wrong try to set it to 9600
-    wifi_set_baud();
+    //wifi_set_baud(); **disabled on production firmware**
     return -1;
   }
   //set to mode STA
@@ -224,7 +224,7 @@ int wifi_set_baud(void){
   //reconfigure UART for 9600
   usart_options.baudrate = WIFI_UART_BAUDRATE;
   usart_serial_init(WIFI_UART,&usart_options);
-
+  printf("reset baudrate\n");
 }
 
 int wifi_transmit(char *url, int port, char *data){

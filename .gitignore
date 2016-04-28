@@ -5,6 +5,7 @@ asf
 *.pyc
 *.o
 firmware/bin/*
+firmware/asf*
 *#
 software/MANIFEST.in
 software/*.egg-info
