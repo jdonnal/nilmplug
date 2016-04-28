@@ -24,7 +24,8 @@ int data_tx_status = TX_IDLE;
 //   the buffer after the full flag is set
 uint32_t wifi_rx_buf_idx = 0;
 
-//int wifi_send_ip(void); **declared in header b/c monitor calls this when NILM IP addr changes
+//**declared in header b/c monitor calls this when NILM IP addr changes
+//int wifi_send_ip(void); 
 int wifi_send_data(int ch, const uint8_t* data, int size);
 //try to set the baud to 9600 since they come from the factory at 115200
 int wifi_set_baud(void);
@@ -116,7 +117,8 @@ int wifi_init(void){
   //make sure the response ends in OK
   uint8_t len = strlen(buf);
   if(len<2 || strcmp(&buf[len-2],"OK")!=0){
-    snprintf(tx_buf,BUF_SIZE,"failed to join network [%s]: [%s]\n",wemo_config.wifi_ssid, buf);
+    snprintf(tx_buf,BUF_SIZE,"failed to join network [%s]: [%s]\n",
+	     wemo_config.wifi_ssid, buf);
     printf(tx_buf);
     core_log(tx_buf);
     //free memory
@@ -522,7 +524,8 @@ ISR(UART0_Handler)
     if(wifi_rx_buf_idx>=6 && !rx_in_prog){
       //check for incoming data
       char dummy;
-      if(sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%c",&rx_chan,&rx_bytes_expected,&dummy)==3){
+      if(sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%c",
+		&rx_chan,&rx_bytes_expected,&dummy)==3){
 	rx_in_prog = true;
 	rx_bytes_recvd  = 1; //reset the RX counter so we know when we have all the data
 	return;
@@ -539,8 +542,8 @@ ISR(UART0_Handler)
 	  wifi_rx_buf_idx=0;
 	}
       }
-      //if wifi_rx_buf is longer than 20 chars we must be out of sync, look for \r\n sequence
-      //and flush the buffer
+      //if wifi_rx_buf is longer than 20 chars we must be out of sync,
+      //look for \r\n sequence and flush the buffer
       if(wifi_rx_buf_idx>20){
 	if(strcmp(&wifi_rx_buf[wifi_rx_buf_idx-2],"\r\n")==0){
 	  wifi_rx_buf_idx = 0; 
