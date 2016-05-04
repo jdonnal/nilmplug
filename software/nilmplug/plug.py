@@ -65,7 +65,7 @@ class Plug:
         s.close()
 
     ######### RBG LED Management #############
-    def set_led(red,green,blue,blink):
+    def set_led(self,red,green,blue,blink):
         if(self.usb):
             self.__set_led_usb(red,green,blue,blink)
         else:
@@ -80,7 +80,7 @@ class Plug:
         dev.write("led %d %d %d %d\n"%(red,green,blue,blink)) #LED solid green
         time.sleep(0.5)
         dev.close()
-    def __set_led__wifi(self,red,green,blue,blink):
+    def __set_led_wifi(self,red,green,blue,blink):
         #now open up a connection to the plug
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((self.device,Plug.PLUG_PORT_NUMBER))
