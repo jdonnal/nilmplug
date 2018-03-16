@@ -1,0 +1,785 @@
+<html>
+  <head>
+    <title>NILM Plug</title>
+    <link rel="stylesheet" type="text/css" href="static/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="static/css/lesser-dark.css">
+
+    <link rel="stylesheet" type="text/css" href="static/css/help.css">
+    <script type="text/javascript" src="static/js/jquery-1.9.1.js"></script>
+    <script type="text/javascript" src="static/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="static/js/codemirror.js"></script>
+   <script type="text/javascript" src="static/js/python.js"></script>
+   <script type="text/javascript" src="static/js/shell.js"></script>
+   <script type="text/javascript" src="static/js/clike.js"></script>
+   
+  </head>
+  <body>
+    <div class="container">
+      <div id="wrap">
+<div>
+  <h1>Smart Plugs</h1>
+</div>
+<hr/>
+<div class="row">
+  <div class="col-md-2 hidden-xs hidden-sm  hidden-print">
+    <div data-spy="affix" data-offset-top="60"  class="bs-docs-sidebar">
+      <ul class="nav nav-stacked">
+        <li><a href="#plug_intro">Intro</a></li>
+        <li><a href="#plug_setup">WiFi Setup</a>
+          <ul class="nav nav-stacked">
+            <li><a href="#wifi-settings">Basic Settings</a></li>
+            <li><a href="#wifi-dhcp">DHCP Setup</a></li>
+          </ul>
+        </li>
+        <li><a href="#plug_nilmplug">nilm-plug</a></li>
+        <li><a href="#plug_api">Plug API</a></li>
+        <li><a href="#plug_cli">Plug CLI</a>
+          <ul class="nav nav-stacked">
+            <li><a href="#calibrate"><mono>calibrate</mono></a></li>
+            <li><a href="#config"><mono>config</mono></a></li>
+            <li><a href="#data"><mono>data</mono></a></li>
+            <li><a href="#log"><mono>log</mono></a></li>
+            <li><a href="#relay"><mono>relay</mono></a></li>
+            <li><a href="#advanced-cli">more...</a></li>
+            <!--
+            <li><a href="#collect_data"><mono>collect_data</mono></a></li>
+            <li><a href="#debug"><mono>debug</mono></a></li>
+            <li><a href="#echo"><mono>echo</mono></a></li>
+            <li><a href="#led"><mono>led</mono></a></li>
+            <li><a href="#ls"><mono>ls</mono></a></li>
+            <li><a href="#memory"><mono>memory</mono></a></li>
+            <li><a href="#meter"><mono>meter</mono></a></li>
+            <li><a href="#restart"><mono>restart</mono></a></li>
+            <li><a href="#version"><mono>version</mono></a></li>
+            <li><a href="#wifi"><mono>wifi</mono></a></li>
+            -->
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div class="col-md-10">
+      <div class="alert alert-info " role="alert">Just getting started? Check the
+    <b><a href="quickstart.html">Quickstart Guide</a></b></div>
+
+<span class="lead" id="plug_intro">Introduction</span>
+<p>
+  The NILM smart plug is a WiFi-enabled plug with a software controlled relay and solid state power meter. These plugs
+  can be controlled over a wireless network or by USB. There are three main tools to interact with these plugs. The easiest tool 
+  is the command line <span class="text-mono">nilm-plug</span> utility which can control most plug features over USB or WiFi. For more
+  advanced operation the plug has a terminal mode that is accessed using <span class="text-mono">nilm-plug --cli</span>. See <a href="#plug_cli">Plug CLI</a> for more details. Finally there is a set of python modules for scripting and integration with NILM filters. See <a href="#plug_api">Plug API</a> for more details. In order to use the plugs on a network a wireless access point should be set up with MAC address reservations and static IP bindings for each plug. See the next section for details on configuring a wireless access point.
+</p> 
+<div class="row">
+  <div class="col-sm-12 col-md-6">
+    <div class="thumbnail">
+      <img src= "static/images/plug_running.png">
+      <div class="caption">
+        Smart Plug connected to a NILM over a wireless network. The green LED indicates the plug has authenticated to the network.
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-12 col-md-6">
+    <div class="thumbnail">
+      <img src= "static/images/plug_usb.jpg">
+      <div class="caption">
+        Smart Plug connected to a NILM by USB. Blue LED indicates an active USB communication between the NILM plug.
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr/>
+<span class="lead" id="plug_setup">WiFi Setup</span>
+<p> Any standard wireless access point can be used to interact with NILM smart plugs. This documentation covers the TP-Link <b>TL-WR841N</b>. A similar sequence of steps should work on most devices. When setup for the first time the router will advertise a default SSID. The network name and password can be found on the back of the router as shown the figure below. Open a browser and navigate to <span class="mono">http://tplinkwifi.net</span>. Authenticate with username [admin] and password [admin]. </p>
+</p>
+<div class="row">
+  <div class="col-sm-12 col-md-6">
+    <div class="thumbnail">
+      <img src= "static/images/tplink_wr841n.jpg">
+      <div class="caption">
+        TP-LINK TL-WR841N Wireless Router
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-12 col-md-6">
+    <div class="thumbnail" style="padding-top: 33px; padding-bottom: 30px;">
+      <img src= "static/images/nilmplug_wifi_1.png">
+      <div class="caption">
+        The default SSID and password are on the back of the router
+      </div>
+    </div>
+  </div>
+</div>
+<p id="wifi-settings">Change the wireless network name (SSID). Do not use spaces in the name. If you are configuring multiple access points that will be 
+in close proximity make sure each has a unique name. Make sure the mode supports 802.11a, b and g. This is the default. The broadcast
+SSID checkbox may be disabled if you do not want to advertise the presence of the network. This helps prevent people casually trying to connect
+to the network. Note that this does not improve the security of the network. If you change the name of the network you will have to reconnect to the new SSID once the router restarts.</p>
+<div class="row">
+  <div class="col-sm-12 col-md-10 col-md-offset-1">
+    <div class="thumbnail">
+      <img src= "static/images/nilmplug_wifi_2.png">
+      <div class="caption">
+        Configuring the wireless access point for NILM smart plugs
+      </div>
+    </div>
+  </div>
+</div>
+<p>While not strictly necessary it is strongly recommended to enable wireless security. The plugs work best with WPA2 Personal. The authentication should be set to PSK (pre-shared key) and AES encryption. Select a strong password and save the settings. You will have to reconnect to the network using the new password.</p>
+<div class="row">
+  <div class="col-sm-12 col-md-10 col-md-offset-1">
+    <div class="thumbnail">
+      <img src= "static/images/nilmplug_wifi_3.png">
+      <div class="caption">
+        Recommended security settings for the wireless access point.
+      </div>
+    </div>
+  </div>
+</div>
+<p id="wifi-dhcp">The NILM smart plugs are controlled using their IP addresses. Wireless networks by default assign random addresses to each client. The router
+must be configured to assign a consistent fixed address to each plug. Each plug as a unique MAC address which must be entered into the router to reserve an address. The first step is to make sure DHCP services are enabled on the router and set to a range of addresses that do not overlap with any other networks on the machine including contact meters. The default address space should work well for most configurations. The router will use a pool of the addresses in this space to assign to clients as they connect. This range is specified in the boxes highlighted below. You will need to assign IP addresses to the plugs that are <i>outside</i> of this range. Here the DHCP server will use addresses above <span class="text-mono">*.100</span> leaving <span class="text-mono">*.2-*.99</span>  available for reservations. Note that <span class="text-mono">*.0</span>  and <span class="text-mono">*.1</span>  are reserved and should not be used for plugs. </p>
+<div class="row">
+  <div class="col-sm-12 col-md-10 col-md-offset-1">
+    <div class="thumbnail">
+      <img src= "static/images/nilmplug_wifi_4.png">
+      <div class="caption">
+        Configuring DHCP services on the wireless access point.
+      </div>
+    </div>
+  </div>
+</div>
+<p>Create and address reservation for each plug and record the mapping so that you will know which plug is attached to which address. Note that the format for the MAC address field is <span class="text-mono">XX-XX-XX-XX-XX-XX</span>. The first three octets are the organization identifier (OUI) and are the same for all the plugs. The last three are unique for each plug. The MAC address is labeled on the case of each plug.</p>
+<div class="row">
+  <div class="col-sm-12 col-md-10 col-md-offset-1">
+    <div class="thumbnail">
+      <img src= "static/images/nilmplug_wifi_5.png">
+      <div class="caption">
+        Create address reservations for each plug. The address should not be in the DHCP dynamic address range. 
+      </div>
+    </div>
+  </div>
+</div>
+<p>Connect the host NILM either with WiFi or to one of the local (yellow) ethernet ports on the back of the router. If it is connected to the WAN port (blue) the NILM will not be able to communicate with the plugs. Once the NILM and plugs are configured you should see a status similar to the figure below. All of the plugs (recognizable by their OUI) should have reserved addresses and the computer should have a leased address. </p>
+<div class="row">
+  <div class="col-sm-12 col-md-10 col-md-offset-1">
+    <div class="thumbnail">
+      <img src="static/images/nilmplug_wifi_6.png">
+      <div class="caption">
+        The DHCP Client List shows the current address assignments. Plugs should have a reserved address <span class="text-mono">(Permanent)</span> 
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<hr/>
+<span class="lead" id="plug_nilmplug">nilm-plug</span>
+<p>The easiest way to interact with the NILM smart plug is with the <span class="text-mono">nilm-plug</span> command line utility. It can be used with USB or WiFi connected plugs. The program takes two arguments, an <span class="text-mono">action</span> and a <span class="text-mono">device_address</span>. If a single plug is connected over USB the address can be omitted because the system can find the plug automatically. When multiple plugs are connected by USB or plugs are connected over WiFi the address must be specified. For plugs connected by USB the address is <span class="text-mono">/dev/ttyACM#</span> where # is a number dynamically assigned to the plug by the operating system. Run <span class="text-mono">ls /dev/ttyACM*</span> before and after connecting the plug. The new entry is the plug's <span class="text-mono">device_address</span>. The <span class="text-mono">device_address</span> for wirelessly connected plugs is their IP address.
+  
+<h5 id="plug-fields">Read plug data</h5>
+<span class="plug-cli">nilm-plug --read [--file filename] [plug_address]</span>
+<p>This command retrieves meter data from the plug and stores the result in a comma seperated text (CSV) file. If no file is specified the output is written to the file <span class="text-mono">plug.dat</span> in the current directory. If the file exists, data is appended to the end. Each row of data has eight values specified below:</p>
+<p >
+  <span class="text-mono" style="margin-left:90px; font-weight: bold;"> 
+    ts | vrms | irms | watts | pavg | pf | freq | kwh</span>
+</p>
+<dl class="dl-horizontal mono-dl">
+  <dt>ts</dt><dd>Timestamp in milliseconds since 1970 (UNIX time)</dd>
+  <dt>vrms</dt><dd>RMS voltage (V)</dd>
+  <dt>irms</dt><dd>RMS current (A)</dd>
+  <dt>watts</dt><dd>Current power usage (W)</dd>
+  <dt>pavg</dt><dd>30 second average of power usage (W)</dd>
+  <dt>pf</dt><dd>Power Factor</dd>
+  <dt>freq</dt><dd>Line Frequency (Hz)</dd>
+  <dt>kwh</dt><dd>Energy used since last plugged in (kWh)</dd>
+</dl>
+<p>The plug collects data in one minute packets. The timestamp for each packet is displayed as it is retrieved from the plug. For plugs connected wirelessly only the most recent data packet is available. If a wireless plug is queried before a new packet is ready it will return an empty packet and the output file will remain unchanged. If a plug is connected by USB, the read command returns all of the data packets stored on the SD Card. If the output file already exists, only new data is appended to the end of the file. This command is designed to be run iteratively with each plug using a seperate output file.</p>
+<p>If a plug is read wirelessly it still stores data to the SD Card which can be retrieved later over USB. This allows you to query the plug over an intermittent WiFi connection and fill in any missing data packets once the plug is connected by USB</p>
+
+<h5>Erase plug data (USB only)</h5>
+<span class="plug-cli">nilm-plug --erase [plug_address]</span>
+This command erases all data from the plug's SD Card. Data can only be erased when a plug is connected by USB.
+
+<h5>Read and erase plug data (USB only)</h5>
+<span class="plug-cli">nilm-plug --read_erase [--file filename] [plug_address]</span>
+<p>This command is identical to running <span class="text-mono">read</span> and then <span class="text-mono">erase</span>. This is the recommended command to use with USB plugs to prevent the SD card from filling up with data that has already been retrieved.</p>
+
+<h5>Control plug relay</h5>
+<span class="plug-cli">nilm-plug --relay on|off [plug_address]</span>
+This command turns the plug on or off. If the requested relay state matches the current relay state this command is ignored. This works for both USB and WiFi plugs.
+
+<h5>Display help and examples</h5>
+<span class="plug-cli">nilm-plug --help</span>
+This command displays usage examples and a copy of this documentation.
+<hr/>
+<span class="lead" id="plug_api">Plug API</span>
+<p> 
+  The Plug Application Programming Interface (API) allows you to control NILM smart plugs from Python scripts. Before you can use the API in a script you must import the nilmplug module:
+    <section class="indented cm-view ">
+      <textarea class="cm-textarea">
+from nilmplug import plug</textarea>
+    </section>
+This module contains a single object <span class="text-mono">Plug</span>. The constructor takes two arguments, the <span class="text-mono">device_address</span> and a flag to indicate whether this address is a USB device. The code below shows examples of both plug types:
+    <section class="indented cm-view ">
+      <textarea class="cm-textarea">
+#manage the plug over a USB cable
+my_plug  = plug.Plug("/dev/NODE",usb=True)
+# *OR* manage the plug over wifi
+my_plug = plug.Plug("192.168.1.XX") </textarea>
+    </section>
+The API provides methods to read meter data, control the relay and set the LED color over USB or WiFi. The plug data can be erased over USB.
+</p>
+<h5>Read plug data</h5>
+    <section class="indented cm-view ">
+      <textarea class="cm-textarea">
+my_plug.get_data(last_ts=0)
+#return data *after* last_ts</textarea>
+    </section>
+This method returns a numpy array of data. The columns are described <a href="#plug-fields">here</a>. If the plug has no new data this will return an empty array. The optional argument <span class="text-mono">last_ts</span> limits the returned data to samples <i>after</i> this timestamp. This can be helpful when you don't want to erase the data after reading it. Setting this value to the last timestamp received from the previous read will return only new data. Omitting this parameter will return <i>all</i> data on the SD card.
+<h5>Control plug relay</h5>
+    <section class="indented cm-view ">
+      <textarea class="cm-textarea">
+my_plug.set_relay(value) 
+#value "on" or "off"</textarea>
+    </section>
+This method controls the plug relay. The parameter <span class="text-mono">value</span> must be either <span class="text-mono">"on"</span> or <span class="text-mono">"off"</span>. This method returns 0 on success or -1 on error. Errors can be caused by a poor WiFi connection. 
+<h5>Control plug LED</h5>
+The method controls the multicolor LED. By default the LED is green when the plug is on and running normally, blue when it is actively connected over USB, and red if an error has occured. 
+    <section class="indented cm-view ">
+      <textarea class="cm-textarea">
+my_plug.set_led(red,green,blue,blink) 
+# red,green,blue: 0-255 
+# blink: 0 solid, rate in ms</textarea>
+    </section>
+The red, green, and blue parameters are 8 bit values (<mono>0-255</mono>). Many online references provide common RGB color combinations. The blink value sets the blink rate in milliseconds. Set to <mono>0</mono> to disable blinking (solid).
+
+<h5>Erase plug data (USB only)</h5>
+    <section class="indented cm-view ">
+      <textarea class="cm-textarea">
+my_plug.erase_data()</textarea>
+    </section>
+<p>
+This method removes all data from the plug's SD card. This method can only be used with USB connected plugs.
+</p>
+
+<hr/>
+<span class="lead" id="plug_cli">Plug CLI</span>
+<p> 
+  NILM smart plugs provide a complete command line interface accessible with a standard terminal emulator. The <span class="text-mono">nilm-plug</span> program provides a built-in terminal interface that is started by using the <span class="text-mono">--cli</span> flag:</p>
+  <section class="indented cm-view ">
+    <textarea class="cm-textarea-sh">
+$ nilm-plug --cli
+/dev/smart_plug, 115200 baud
+^C to exit
+----------
+Wattsworth WEMO(R) Plug v1.0
+  [help] for more information
+></textarea>
+  </section>
+<p>The following sections explain the commands available through this interface. You can also use the <span class="text-mono">help</span> in the CLI to see a brief summary of command options.</p>
+
+<!--calibrate-->
+<h5 class="command-title" id="calibrate"><i>calibrate</i> - start or stop calibration mode</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>calibrate</b><span class="text-grey"> 
+    stop|start on_time off_time</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Run the plug in calibration mode. This disables data collection and toggles the relay with a duty cycle
+  of <span class="text-mono">on_time</span> and </span class="text-mono">off_time</span> milliseconds. This is used to calibrate non-contact power meters. Use the <span class="text-mono">stop</span> flag followed by the <a href="#restart">restart</a> command to return the plug to normal operation. This is a persistent setting which means that a plug will remain in calibration mode until set otherwise.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd><span class="text-mono">stop|start</span></dd>
+    <dt>on_time</dt><dd>duration the plug is on in milliseconds</span></dd>
+    <dt>off_time</dt><dd>duration the plug is off in milliseconds</span></dd>
+  </dl>
+</div>
+
+<!-- config -->
+<h5 class="command-title" id="config"><i>config</i>  - get or set a configuration parameter</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>config</b><span class="text-grey"> action parameter [value]</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Retrieve or set the plug configuration parameters. Parameters are persistent and stored on the SD card.  If a blank SD card is inserted into a plug the default parameters are empty strings unless otherwise specified. The last three parameters are used to support DHCP environments where neither the plug or the NILM IP addresses are fixed. If you are using IP address reservations as recommended in <a href="#plug_setup">WiFi Setup</a>, these parameters should be left blank.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd><span class="text-mono">get|set</span></dd>
+    <dt>parameter</dt><dd>configuration parameter, see list below</dd>
+    <dt>value</dt><dd>new value of parameter, leave blank to clear parameter setting</dd>
+  </dl>
+</div>
+<i>Parameters</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>wifi_ssid</dt><dd>wireless network name</dd>
+    <dt>wifi_pwd</dt><dd>wireless network password. Leave blank for open network. <i>(write only)</i></dd>
+    <dt>standalone</dt><dd><span class="text-mono">[true|false]</span> If true, do not attempt to connect to a wireless network. Default is <span class="text-mono">true</span></dd>
+    <dt>serial_number</dt><dd>unique string to indentify the plug</dd>
+    <dt>nilm_id</dt><dd>the NILM associated with this plug <i>(optional)</i></dd>
+    <dt>nilm_ip</dt><dd>the IP address of the associated NILM <i>(optional)</i></dd>
+    <dt>mgr_url</dt><dd>management website URL (optional)</dd>    
+  </dl>
+</div>
+<i>Example</i>
+<div class="block-indent">
+  <section class="cm-view ">
+    <textarea class="cm-textarea-raw">
+> config set wifi_ssid nilmplug
+Set [wifi_ssid] to [nilmplug]
+> config get serial_number
+plugAD49</textarea>
+  </section>
+</div>
+
+
+<!--data -->
+<h5 class="command-title" id="data"><i>data</i> - read or clear the data</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>data</b><span class="text-grey"> action</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Use this command to retrieve data packets stored on the SD card. The data is returned in the binary format described below and should only be used in scripts, not for printing to the terminal. If you want to view data from the command line, use the <a href="#meter">meter</a> command. Use the <span class="text-mono">erase</span> flag to erase the data file.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd style="margin-left: 80px"><span class="text-mono">[read|erase]</span></dd>
+  </dl>
+</div>
+<i>Structure</i>
+<div class="block-indent">
+  Data is returned in packet chunks with the binary format shown below. End of file (EOF) is signaled by 
+  a packet containing the character <span class="text-mono">x</span> in every byte. See the plug.py source code for an example of how to parse this data structure in python.
+  <section class=" cm-view ">
+    <textarea class="cm-textarea-c">
+//binary structure returned by [data read] command
+#define PKT_SIZE 30
+#define PKT_TIMESTAMP_BUF_SIZE 20
+typedef struct power_pkt_struct {
+  int32_t vrms[PKT_SIZE];     //RMS voltage
+  int32_t irms[PKT_SIZE];     //RMS current
+  int32_t watts[PKT_SIZE];    //watts
+  int32_t pavg[PKT_SIZE];     //Average power (30s window)
+  int32_t freq[PKT_SIZE];     //Line frequency
+  int32_t pf[PKT_SIZE];       //Power factor
+  int32_t kwh[PKT_SIZE];      //kWh since turn on
+  char timestamp[PKT_TIMESTAMP_BUF_SIZE]; //YYYY-MM-DD HH:MM:ss
+  uint8_t status;             //struct valid flag
+} power_pkt; 
+
+//end of file signal returned by [data read] command
+char* EOF = (char*)malloc(sizeof(power_pkt));
+memset(&EOF,'x',sizeof(power_pkt));</textarea>
+</section>
+
+
+
+<!--rtc-->
+<h5 class="command-title" id="rtc"><i>rtc</i> – get or set the real time clock (RTC) value</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>rtc</b><span class="text-grey"> get|set year month date dw hour min sec</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Get or set the value of the real time clock. The battery backed rtc is used to timestamp data collected by the plug. Query the current time using get, or set the time and specify the full date, see the arguments below:
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>get</dt><dd>return the current time formatted as a string. If the battery fails this will report a corrupt date</dd>
+    <dt>set</dt><dd>set the clock value, all of the following parameters must be set to valid values for this command to execute successfully</dd>
+    <dt>year</dt><dd>year as a two digit number 2016 = <span class="text-mono">16</span></dd>
+    <dt>month</dt><dd>two digit value <span class="text-mono">0-12</span></dd>
+    <dt>date</dt><dd>two digit value <span class="text-mono">0-31</span></dd>
+    <dt>dw</dt><dd>day of week <span class="text-mono">0-7</span></dd>
+    <dt>hour</dt><dd>two digit value <span class="text-mono">0-24</span></dd>
+    <dt>min</dt><dd>minute as a two digit value <span class="text-mono">0-59</span></dd>
+    <dt>sec</dt><dd>second as a two digit number <span class="text-mono">0-59</span></dd>
+  </dl>
+</div>
+<i>Example</i>
+<div class="block-indent">
+  <section class="cm-view ">
+    <textarea class="cm-textarea-raw">
+> rtc set 16 02 01 01 03 16 51
+Set time to: 2016-02-01 03:16:51
+> rtc get
+Time: 2016-02-01 03:16:51</textarea>
+  </section>
+</div>
+
+<!--log-->
+<h5 class="command-title" id="log"><i>log</i> - read or clear the log</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>log</b><span class="text-grey"> action</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  The SD card records a persistent log of plug events. This includes network connectivity, general errors,
+  and system restarts. A <span class="text-mono">[general reset]</span> occurs when the plug is connected to power and a <span class="text-mono">[software reset]</span> is indicates the <a href="#restart">restart</a> command was used. Use the <span class="text-mono">clear</span> flag to erase the log file.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd style="margin-left: 80px"><span class="text-mono">[read|erase]</span>
+  </dl>
+</div>
+<i>Example</i>
+<div class="block-indent">
+  <section class=" cm-view ">
+    <textarea class="cm-textarea-raw">
+> log read
+...
+[2016-01-29 14:59:06]: general reset
+[2016-01-31 03:41:41]: no requests from NILM, resetting WiFi
+[2016-01-31 03:42:00]: Joined [nilmplug] with IP [192.168.0.11]
+[2016-01-31 03:44:25]: software reset</textarea></section>
+</div>
+
+<!--relay-->
+<h5 class="command-title" id="relay"><i>relay</i> - control the plug relay </h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>relay</b><span class="text-grey"> action</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Control the plug relay to turn the connected appliance on or off. Executing this command with the 
+  existing relay state has no effect.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd><span class="text-mono">on|off</span> 
+  </dl>
+</div>
+
+<hr/>
+<span class="lead" id="advanced-cli">Advanced Commands</span>
+<p>The following commands are specialized diagnostic tools that are less commonly used. They are listed alphabetically</p>
+
+
+<!--collect_data-->
+<h5 class="command-title"><i>collect_data</i> - start or stop power logging </h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>collect_data</b><span class="text-grey"> action</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Start or stop data collection from the power meter. By default the plug collects data from 
+  the power meter. This command can be useful for debugging communication with the solid state
+  meter hardware.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd style="margin-left: 80px"><span class="text-mono">[true|false]</span></dd>
+  </dl>
+</div>
+
+<!--debug-->
+<h5 class="command-title" id="debug"><i>debug</i> - set debug level</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b></b><span class="text-grey"> level</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Controls the verbosity of console information. Set to <span class="text-mono">5</span> to 
+  see AT command traffic to the ESP8266. This is useful for diagnosing network connectivity issues.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>level</dt><dd style="margin-left:80px;"><span class="text-mono">[0-5]</span> Default is 0 (lowest). Level >=3 show wireless TX messages. Level >=4 echo ESP8266 AT traffic</dd>
+  </dl>
+</div>
+<i>Example</i>
+<div class="block-indent">
+The wireless interface is controlled by a seperate ESP8266 module which communicates with the main processor through a UART with AT commands. The following shows the output of a successful wireless bootup. Note that the output of this debug session also displays the plug MAC address (<span class="text-mono">CIFSR:STAMAC</span>). This should be labeled on the plug case but if it is not present use the combination of these two commands to find it.
+  <section class=" cm-view ">
+    <textarea class="cm-textarea-raw">
+> debug 4
+debug level: 4
+> wifi on
+AT+RST
+
+OK
+c\xfec\xcfRSvfgj\xd7\xe2j\xd3jS&\xeaJ\xf3\x82k\xfaf\xd2fW\xf2@
+Ai-Thinker Technology Co. Ltd.
+
+ready
+AT+CWMODE=1
+
+OK
+AT+CWJAP="nilmplug","topsecret"
+
+OK
+AT+CIFSR
++CIFSR:STAIP,"192.168.0.11"
++CIFSR:STAMAC,"18:fe:34:9d:13:5a"
+
+OK
+AT+CIPMUX=1
+
+OK
+AT+CIPSERVER=1,1336
+
+Joined [nilmplug] with IP [192.168.0.11]
+wifi on
+></textarea></section>
+
+<!--echo-->
+<h5 class="command-title" id="echo"><i>echo</i> - turn echo on or off</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>echo</b><span class="text-grey"> action</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Turn the prompt echo on or off. This can be useful when interacting with the plug via scripts. This 
+  value is not persistent and defaults to <span class="text-mono">on</span>.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd><span class="text-mono">on|off</span> 
+  </dl>
+</div>
+
+<!--led-->
+<h5 class="command-title" id="led"><i>led</i> - set the led </h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>led</b><span class="text-grey"> red green blue blink</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Set the LED color and control the blink rate. This overrides the default color but any change
+  to the system (eg, error or USB connect event) will change the LED back the system setting.
+  This is not a persistent setting, it resets to the system default on powerloss.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>red</dt><dd><span class="text-mono">[0-255]</span></dd>
+    <dt>green</dt><dd><span class="text-mono">[0-255]</span></dd>
+    <dt>blue</dt><dd><span class="text-mono">[0-255]</span></dd>
+    <dt>blink</dt><dd>blink rate in milliseconds, set to <span class="text-mono">0</span> for no blink. Maximum value is <span class="text-mono">65536</span>.
+  </dl>
+</div>
+
+<!--ls-->
+<h5 class="command-title" id="ls"><i>ls</i> - view files on SD Card</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>ls</b><span class="text-grey">  <i>&lt;no arguments&gt;</i></span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  View SD card file statistics, similar to the standard linux <span class="text-mono">ls</span> command. There should be three files. The timestamp is the last modified
+  date as recorded by the plug RTC. The files are:
+  <dl class="arglist dl-horizontal">
+    <dt>log.txt</dt><dd>system log</dd>
+    <dt>config.txt</dt><dd>persistent configuration settings</dd>
+    <dt>power.dat</dt><dd>data collected by the plug power meter in binary format</dd>
+  </dl>
+</div>
+<i>Example</i>
+<div class="block-indent">
+  <section class=" cm-view ">
+    <textarea class="cm-textarea-raw">
+> ls
+FILE         SIZE        DATE
+log.txt      29445       16/01/31 03:44
+config.txt 	 197         16/01/28 19:41
+power.dat 	 825984      16/01/31 03:43</textarea></section>
+</div>
+
+<!--memory-->
+<h5 class="command-title" id="memory"><i>memory</i> - show memory statistics</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>memory</b><span class="text-grey">  <i>&lt;no arguments&gt;</i></span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  The plug firmware dynamically allocates memory using a set of reserved blocks similar to a heap. This command is useful for debugging memory allocation. A steadily
+  increasing allocation percentage indicates a memory leak in the code. 
+</div>
+<i>Example</i>
+<div class="block-indent">
+  <section class=" cm-view ">
+    <textarea class="cm-textarea-raw">
+> memory
+Allocated 200 of 11200 bytes (1%)
+Largest free block: 1000 bytes
+Smallest free block: 200 bytes</textarea>
+</section>
+</div>
+
+<!--meter-->
+<h5 class="command-title" id="meter"><i>meter</i>  - view plug meter</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>meter</b><span class="text-grey"> <i>&lt;no arguments&gt;</i></span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Displays the last full data packet collected by the meter. If the meter is not collecting data an error message is displayed instead. This is a convience function for debugging see <a href="#data">data</a> command for retrieving meter data.
+</div>
+<i>Example</i>
+<div class="block-indent">
+  <section class=" cm-view ">
+    <textarea class="cm-textarea-raw">
+> meter
+**this data may be up to a minute behind**
+________________
+voltage | 119.25
+current | 0.51
+watts   | 59.62
+avg pwr | 55.30
+freq    | 59.59
+pf      | 0.95
+kwh     | 0.81</textarea>
+  </section>
+</div>
+
+<!-- restart -->
+<h5 class="command-title" id="restart"><i>restart</i> - software reset</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>restart</b><span class="text-grey"> bootloader</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  This command issues a soft reset to the processor. The optional <span class="text-mono">bootloader</span>
+  flag restarts the processor in SAM-BA bootloader mode. This should only be used when the plug needs to be reflashed over USB
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>bootloader</dt><dd>boot into SAM-BA firmware <b>this should only be used for reflashing the plug</b></dd>
+  </dl>
+</div>
+
+<!--version-->
+<h5 class="command-title" id="version"><i>version</i> - firmware info</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>version</b><span class="text-grey">  <i>&lt;no arguments&gt;</i></span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Print the firmware version and compilation date. The firmware version is set by the <span class="text-mono">VERSION_STR</span> define in <span class="text-mono">inc/monitor.h</span>.
+</div>
+<i>Example</i>
+<div class="block-indent">
+  <section class=" cm-view ">
+    <textarea class="cm-textarea-raw">
+> version
+	Firmware [v1.1]
+	Date: [Jan  5 2016 17:08:53]</textarea></section>
+</div>
+
+<!-- wifi -->
+<h5 class="command-title" id="wifi"><i>wifi</i> - turn wifi on or off</h5>
+<i>Usage</i>
+<div class="block-indent">
+  <span class="text-mono"><b>wifi</b><span class="text-grey"> action</span></span>
+</div>
+<i>Description</i>
+<div class="block-indent">
+  Turn the wifi system (ESP8266) on or off. The wifi system is turned on a system boot if <span class="text-mono">wifi_ssid!="" and standalone==false</span>. Issuing this command with the <span class="text-mono">on</span> will reset the wifi module and attempt to connect to the specified network. Use in conjunction with the <a href="#debug">debug</a> command to diagnose network connectivity issues.
+</div>
+<i>Arguments</i>
+<div class="block-indent">
+  <dl class="arglist dl-horizontal">
+    <dt>action</dt><dd style="margin-left:80px;"><span class="text-mono">on|off</dd>
+  </dl>
+</div>
+
+</div>
+</div>
+
+
+
+
+
+
+
+<style media="screen" type="text/css">
+.cm-view{
+  font-family: monospace;
+}
+</style>
+
+<script type="text/javascript">
+  $(function(){
+  var cms = $(".cm-textarea")
+  for(var i=0;i<cms.length;i++){
+    CodeMirror.fromTextArea(cms[i], 
+      { mode: "python",
+        readOnly: true,
+        lineNumbers: true,
+     });
+  }
+});
+</script>
+<script type="text/javascript">
+$(function(){
+  var cms = $(".cm-textarea-sh")
+  for(var i=0;i<cms.length;i++){
+    CodeMirror.fromTextArea(cms[i], 
+      { mode: "shell",
+        readOnly: true,
+        lineNumbers: true,
+     });
+  }
+});
+</script>
+
+<script type="text/javascript">
+$(function(){
+  var cms = $(".cm-textarea-c")
+  for(var i=0;i<cms.length;i++){
+    CodeMirror.fromTextArea(cms[i], 
+      { mode: "text/x-csrc",
+        readOnly: true,
+        lineNumbers: true,
+     });
+  }
+});
+</script>
+
+<script type="text/javascript">
+$(function(){
+  var cms = $(".cm-textarea-raw")
+  for(var i=0;i<cms.length;i++){
+    CodeMirror.fromTextArea(cms[i], 
+      { mode: "__raw",
+        readOnly: true,
+        lineNumbers: true,
+     });
+  }
+});
+		  </script>
+
+</body>
+</html>

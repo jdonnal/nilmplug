@@ -1,0 +1,114 @@
+<html>
+  <head>
+    <title>NILM Plug</title>
+    <link rel="stylesheet" type="text/css" href="static/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="static/css/lesser-dark.css">
+
+    <link rel="stylesheet" type="text/css" href="static/css/help.css">
+    <script type="text/javascript" src="static/js/jquery-1.9.1.js"></script>
+    <script type="text/javascript" src="static/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="static/js/codemirror.js"></script>
+   <script type="text/javascript" src="static/js/python.js"></script>
+   <script type="text/javascript" src="static/js/shell.js"></script>
+   <script type="text/javascript" src="static/js/clike.js"></script>
+   
+  </head>
+  <body>
+    <div class="container">
+      <div id="wrap">
+<h1 style="text-align: center; font-weight: 200;">Quickstart Guide To Smart Plugs</h1>
+
+<hr/>
+
+
+<h2 ng-click="toggle(0)" class="qs-heading">1. Hardware Setup </h2>
+<div ng-show="true">
+  <span class="lead">Configure Wireless Router</span>
+  <p>The plugs will work with most commercial routers. The plug <a href="index.html#plug_setup" target="_blank">documentation</a> provides detailed instructions on configuring a TP-Link modem. </p>
+  <span class="lead">Connect Plug</span>
+  <p>Before using a plug it must be configured over USB. Power up the plug by placing it in an outlet and connect it to the NILM using a micro USB cable. The status LED will alternate between green and blue. Wait until the LED is solid green before continuing to <b><mono>Step 2</mono></b>. See a closeup view of the USB connection <a href="static/images/plug_usb.jpg" target="_blank">here</a></p>.
+</div>
+
+<h2 ng-click="toggle(0)" class="qs-heading">2. Configure the Plug </h2>
+<div ng-show="true">
+  <span class="lead">Plug Command Line Interface (CLI)</span>
+  <p>From a terminal window, open up the plug command line interface by running the command below (<a href="static/images/screenshot_terminal.png" target="_blank"%>how to access the terminal</a>). <i>NOTE:</i> If multiple plugs are connected to the same NILM over USB then you must specify the <mono>/dev/NODE</mono> name of the plug. See <a href="index.html#plug_nilmplug" target="_blank"><mono>nilm-plug</mono></a> documentation for details. </p>
+      <section class="indented cm-view">
+        <textarea class="cm-textarea-sh">
+$ nilm-plug --cli
+/dev/smart_plug, 115200 baud
+^C to exit
+----------
+Wattsworth WEMO(R) Plug v1.0
+ [help] for more information
+
+></textarea>
+      </section>
+
+  <span class="lead">Disabling Calibration Mode <i>optional</i></span>
+  <p>If the plug is configured as a calibration load it will not operate as a smart plug until you explicitly stop the calibration. Run the commands shown below. (documentation for <b><mono><a href="index.html#calibrate" target="_blank">calibrate</a>, <a href="index.html#config" target="_blank">config</a>, <a href="index.html#restart" target="_blank">restart</a></mono></b>)</p>
+  <section class="indented cm-view">
+    <textarea class="cm-textarea-sh">
+> calibrate stop
+> config set standalone false
+> restart</textarea>
+</section>
+  <p>This will restart the plug and you will have to enter the command line interface by running the <mono>nilm-plug --cli</mono> command again</p>
+  <span class = "lead">Configuring Wifi Parameters</span>
+  <p>The plugs will work on most standard WiFi networks. They will operate on 802.11a/b/g with WPA2, WEP or no encryption. WPA2 is recommended for the best security. Run the following commands replacing <mono>network_name</mono> and <mono>network_password</mono> with the appropriate values. Ignore the password setting if your network is not protected. (documentation for <b><mono><a href="index.html#config" target="_blank">config</a></mono></b>)</p>
+<section class="indented cm-view">
+  <textarea class="cm-textarea-sh">> config set wifi_ssid network_name
+> config set wifi_pwd network_password</textarea>
+</section>
+  <p>This is all that's needed to get the plug on your network. To check the plug connectivity run the following commands to view debug output from the plug as it connects to the network: (documentation for <b><mono><a href="index.html#debug" target="_blank">debug</a>, <a href="index.html#wifi" target="_blank">wifi</a></mono></b>)</p>
+<section class="indented cm-view">
+  <textarea class="cm-textarea-sh">
+> debug 5
+> wifi on</textarea>
+</section>
+  
+  <p>You should see several <mono>AT</mono> commands and ultimately a success message with an IP address. This should match the address reservation on the wireless modem as configured in <mono><b>Step 1</b></mono>. Alternatively you can look at the plug <mono>log</mono> which should end with an entry similar to the following: (documentation for <b><mono><a href="index.html#log" target="_blank">log</a></mono></b>)</p>
+<section class="indented cm-view">
+  <textarea class="cm-textarea-sh">
+> log read
+   ... other entries ...
+[2016-03-04 20:26:55]: Joined [MIT] with IP [18.111.127.86]</textarea>
+</section>
+</div>
+
+<h2 ng-click="toggle(0)" class="qs-heading">3. Using the Plug</h2>
+<div ng-show="true">
+  <span class="lead">Control from a terminal window with <mono>nilm-plug</mono></span>
+  <p>Once the plug is configured for the wireless network it can be disconnected from the NILM and placed in any outlet within range of the WiFi access point. After the plug has connected to the network you can interact with it from a terminal window using <b><mono><a href="index.html#plug_nilmplug" target="_blank">nilm-plug</a></mono></b>. This command lets you read the power meter data, and set the relay. </p>
+  <span class="lead">Control with Python scripts</span>
+  <p>An application programming interface (API) is available in Python. See <a href="index.html#plug_api" target="_blank">Plug API</a> for full details. Python scripts using the API can be executed directly from the command line or built into NILM Filters and Reports.</p>
+</div>
+      </div>
+      </div>
+
+<script type="text/javascript">
+$(function(){
+  var cms = $(".cm-textarea-sh")
+  for(var i=0;i<cms.length;i++){
+    CodeMirror.fromTextArea(cms[i], 
+      { mode: "custom",
+        readOnly: true,
+        lineNumbers: true,
+     });
+  }
+});
+$(function(){
+  var cms = $(".cm-textarea-py")
+  for(var i=0;i<cms.length;i++){
+    CodeMirror.fromTextArea(cms[i], 
+      { mode: "python",
+        readOnly: true,
+        lineNumbers: true,
+     });
+  }
+});
+</script>
+  </body>
+  </html>
