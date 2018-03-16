@@ -63,7 +63,7 @@ def read_data(wemo):
         cs = (~cs)+1
         cs = cs&0xFF
         if(cs!=line[-1]):
-            print "checksum error: %02X != %02X"%(cs,line[-1])
+            print("checksum error: %02X != %02X"%(cs,line[-1]))
         #now extract out the 9 3-byte values of the packet
         regs = []
         vals = line[2:29]
@@ -85,7 +85,7 @@ def read_data(wemo):
     pf = np.mean(result[:,6])*1e-3
     freq = np.mean(result[:,7])*1e-3
     kwh = np.mean(result[:,8])*1e-3
-    print "%dV %.2fI %dW %dW %.2fpf %.2fHz %.2fkWh"%(int(vrms),irms,int(watts),pavg,pf,freq,kwh)
+    print("%dV %.2fI %dW %dW %.2fpf %.2fHz %.2fkWh"%(int(vrms),irms,int(watts),pavg,pf,freq,kwh))
         
 #    print np.mean(result[:,0])
 #    print np.mean(result[:,1])

@@ -15,16 +15,16 @@ COL_CYAN = ESC_SEQ+"36;01m"
 
 
 
-def run(self):
+def run():
     sys.stdout.write("adding udev entry for nilm-plug devices ")
     udev_file = pkg_resources.resource_filename(
         "nilmplug", "resources/90-nilmplug.rules")
     try:
         shutil.copy(udev_file, "/etc/udev/rules.d")
     except(PermissionError):
-        self.run_as_root()        
-    print("["+COL_GREEN+"OK"+COL_RESET+"]")
+        run_as_root()        
+    print(("["+COL_GREEN+"OK"+COL_RESET+"]"))
 
-def run_as_root(self):
-    print("["+COL_RED+"ERROR"+COL_RESET+"]\n run as [sudo nilm initialize]")
+def run_as_root():
+    print(("["+COL_RED+"ERROR"+COL_RESET+"]\n run as [sudo nilm initialize]"))
     exit(1)

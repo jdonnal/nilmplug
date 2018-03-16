@@ -12,3 +12,4 @@ software/*.egg-info
 software/MANIFEST
 software/build
 software/dist
+software/nilmplug/*.bak

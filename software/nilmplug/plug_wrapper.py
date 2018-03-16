@@ -37,9 +37,10 @@ desc = """nilm-plug
 import socket
 import os
 import argparse
+from . import initialize
 import csv
-from plug import Plug
-import terminal
+from .plug import Plug
+from . import terminal
 
 FNULL = open(os.devnull,'w')
 
@@ -74,8 +75,8 @@ def read_meter(device,dest_file,usb,erase=False):
             #erase if requested
             if(erase):
                 plg.erase_data()
-                print "\t erased data"
-            print "All data retrieved, unplug smartee to reset"
+                print("\t erased data")
+            print("All data retrieved, unplug smartee to reset")
 def main():
         parser = argparse.ArgumentParser(
             formatter_class = argparse.RawDescriptionHelpFormatter,
@@ -90,7 +91,7 @@ def main():
                             help="erase data after reading (USB only)")
         group.add_argument("--cli",action="store_true",
                            help = "open plug command line interface (USB only)")
-        parser.add_argument("--initialize", action="store_true",
+        group.add_argument("--initialize", action="store_true",
                             help = "install nilm-plug udev rules (requires root)")
         parser.add_argument("--file",action="store",default="plug.dat",
                             help="destination file for meter data")
@@ -102,7 +103,7 @@ def main():
 
         #if initialize is specified run the setup routine and exit
         if(args.initialize):
-            intialize.run()
+            initialize.run()
             exit(0)
             
         #check if the device looks like an IP address
@@ -116,9 +117,9 @@ def main():
             else:
                 #if the default isn't found display custom error
                 if(args.device=="/dev/smart_plug"):
-                    print "Error: no smart plug found, specify IP address or /dev/NODE"
+                    print("Error: no smart plug found, specify IP address or /dev/NODE")
                 else:
-                    print "Error: device [%s] not found"%args.device
+                    print("Error: device [%s] not found"%args.device)
                 exit(1)
         #make sure erase is only used if [usb] and [read] are specified
         if((args.erase or args.cli) and (not usb)):

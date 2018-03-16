@@ -98,8 +98,7 @@ elif os.name == 'posix':
                 return None # timeout
 
 else:
-    raise ("Sorry, no terminal implementation for your platform (%s) "
-           "available." % sys.platform)
+    raise "Sorry, no terminal implementation for your platform (%s) available."
 
 class JimtermColor(object):
     def __init__(self):

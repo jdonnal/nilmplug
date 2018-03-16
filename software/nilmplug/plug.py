@@ -27,7 +27,7 @@ class Plug:
             self.__set_relay_usb(value)
         else:
             self.__set_relay_wifi(value)
-        print "set relay [%s]"%value
+        print("set relay [%s]"%value)
 
     def __set_relay_usb(self,value):
         if(value!="on" and value!="off"):
@@ -59,7 +59,7 @@ class Plug:
         if(resp=="OK"):
             return 0
         else:
-            print("bad response: %s",resp)
+            print(("bad response: %s",resp))
             return -1
         print("closing socket")
         s.close()
@@ -94,7 +94,7 @@ class Plug:
         if(resp=="OK"):
             return 0
         else:
-            print("bad response: %s",resp)
+            print(("bad response: %s",resp))
             return -1
         print("closing socket")
         s.close()
@@ -115,7 +115,7 @@ class Plug:
         dev.write("config get serial_number\n")
         time.sleep(0.5)
         serial_number = dev.readline().rstrip();
-        print("\tConnected to SmartEE [%s]"%serial_number)
+        print(("\tConnected to SmartEE [%s]"%serial_number))
         print("\t starting data dump")
         dev.write("led 255 255 0 500\n") #LED orange blink
         time.sleep(0.5)
@@ -150,7 +150,7 @@ class Plug:
         try:
             s.connect((self.device,Plug.PLUG_PORT_NUMBER))
         except socket.error:
-            print "Plug refused connection"
+            print("Plug refused connection")
             return None
         s.settimeout(7.0)
         s.sendall("send_data")
@@ -210,7 +210,7 @@ class Plug:
         try:
             utc_ts = timegm(time.strptime(data['time'],"%Y-%m-%d %H:%M:%S"))
         except ValueError:
-            print "corrupt date stamp"
+            print("corrupt date stamp")
             return None
         #convert the data to proper units
         vrms = [float(x)/1000.0 for x in data['vrms']]
@@ -220,7 +220,7 @@ class Plug:
         pf = [float(x)/1000 for x in data['pf']]
         freq = [float(x)/1000 for x in data['freq']]
         kwh = [float(x)/1000 for x in data['kwh']]
-        print data['time']
+        print(data['time'])
         #create the numpy array to put in nilmdb
         data_size = len(vrms)
         ts_start = int(round(utc_ts*1e3))
@@ -231,7 +231,7 @@ class Plug:
         while(ts[overlap]<=last_ts):
             overlap+=1
             if(overlap>=len(ts)):
-                print "this data is all too old, ignoring"
+                print("this data is all too old, ignoring")
                 break
         db_data = db_data[overlap:]
         if(len(db_data)==0):
