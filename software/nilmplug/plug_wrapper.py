@@ -90,6 +90,8 @@ def main():
                             help="erase data after reading (USB only)")
         group.add_argument("--cli",action="store_true",
                            help = "open plug command line interface (USB only)")
+        parser.add_argument("--initialize", action="store_true",
+                            help = "install nilm-plug udev rules (requires root)")
         parser.add_argument("--file",action="store",default="plug.dat",
                             help="destination file for meter data")
         parser.add_argument("device", action="store", default="/dev/smart_plug",
@@ -97,7 +99,12 @@ def main():
                             help="Device: either a /dev/NODE or an IPv4 address")
         
         args = parser.parse_args()
-        
+
+        #if initialize is specified run the setup routine and exit
+        if(args.initialize):
+            intialize.run()
+            exit(0)
+            
         #check if the device looks like an IP address
         try:
             socket.inet_aton(args.device)
