@@ -4,6 +4,7 @@ import numpy as np
 from calendar import timegm
 import time
 import serial
+import datetime
 
 class Plug:
     #structure of packet
@@ -23,11 +24,11 @@ class Plug:
 
     ######### Relay Management #############
     def set_relay(self,value):
-        if(self.usb):
-            self.__set_relay_usb(value)
-        else:
-            self.__set_relay_wifi(value)
         print("set relay [%s]"%value)
+        if(self.usb):
+            return self.__set_relay_usb(value)
+        else:
+            return self.__set_relay_wifi(value)
 
     def __set_relay_usb(self,value):
         if(value!="on" and value!="off"):
@@ -45,7 +46,15 @@ class Plug:
     def __set_relay_wifi(self,value):
         #now open up a connection to the plug
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.device,Plug.PLUG_PORT_NUMBER))
+        try:
+            s.connect((self.device,Plug.PLUG_PORT_NUMBER))
+        except socket.error:
+            print("error, can't connect to plug")
+            return -1
+        except Exception as e:
+            print("error: other exception")
+            print(e)
+            return -1
         if(value=="on"):
             s.sendall('relay_on')
         elif(value=="off"):
@@ -54,8 +63,13 @@ class Plug:
         try: 
             resp = s.recv(2)
         except socket.timeout:
-                print("error, no response from plug")
-                return -1
+            print("error, no response from plug")
+            return -1
+        except Exception as e:
+            print("error: other exception")
+            print(e)
+            return -1
+
         if(resp=="OK"):
             return 0
         else:
@@ -63,13 +77,92 @@ class Plug:
             return -1
         print("closing socket")
         s.close()
+    ######### Calibration Mode ###############
+    def set_calibrate(self,run,on_time=0,off_time=0):
+        if(not self.usb):
+            print("error: cannot change calibration mode over WiFi")
+            return
+        if(run and (on_time<1000 or off_time<1000)):
+            print("error: invalid settings for on and off times")
+            return
+        dev = serial.Serial(self.device)
+        time.sleep(1.5) #wait for welcome message
+        dev.write("echo off\n")
+        time.sleep(0.5)
+        dev.flushInput()
+        time.sleep(0.5)
+        if(run):
+            dev.write("calibrate start %d %d\n"%(on_time,off_time))
+        else:
+            dev.write("calibrate stop\n")
+        time.sleep(0.5)
+        dev.close()
+    ######### RTC Management     #############
+    def set_rtc(self):
+        utc = datetime.datetime.utcnow()
+        yr = int(utc.strftime("%y"))
+        mo = utc.month
+        dt = utc.day
+        dw = int(utc.strftime("%w"))
+        hr = utc.hour
+        mn = utc.minute
+        sc = utc.second
 
-    ######### RBG LED Management #############
+        if(self.usb):
+            return self.__set_rtc_usb(yr,mo,dt,dw,hr,mn,sc)
+        else:
+            return self.__set_rtc_wifi(yr,mo,dt,dw,hr,mn,sc)
+        
+    def __set_rtc_usb(self,yr,mo,dt,dw,hr,mn,sc):
+        dev = serial.Serial(self.device)
+        time.sleep(1.5) #wait for welcome message
+        dev.write("echo off\n")
+        time.sleep(0.5)
+        dev.flushInput()
+        time.sleep(0.5)
+        dev.write("rtc  set %d %d %d %d %d %d %d\n"%
+               (yr, mo, dt, dw, hr, mn, sc))
+        time.sleep(0.5)
+        dev.close()
+    def __set_rtc_wifi(self,yr,mo,dt,dw,hr,mn,sc):
+        #now open up a connection to the plug
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.connect((self.device,Plug.PLUG_PORT_NUMBER))
+        except socket.error:
+            print("error, can't connect to plug")
+            return -1
+        except Exception as e:
+            print("error: other exception")
+            print(e)
+            return -1
+
+        s.sendall('set_rtc_%d_%d_%d_%d_%d_%d_%d.'%(yr,mo,dt,dw,hr,mn,sc))
+        s.settimeout(3.0)
+        try: 
+            resp = s.recv(2)
+        except socket.timeout:
+                print("error, no response from plug")
+                return -1
+        except Exception as e:
+            print("error: other exception")
+            print(e)
+            return -1
+
+        if(resp=="OK"):
+            return 0
+        else:
+            print(("bad response: %s",resp))
+            return -1
+        print("closing socket")
+        s.close()
+        
+    ######### RGB LED Management #############
     def set_led(self,red,green,blue,blink):
         if(self.usb):
-            self.__set_led_usb(red,green,blue,blink)
+            return self.__set_led_usb(red,green,blue,blink)
         else:
-            self.__set_led_wifi(red,green,blue,blink)
+            return self.__set_led_wifi(red,green,blue,blink)
     def __set_led_usb(self,red,green,blue,blink):
         dev = serial.Serial(self.device)
         time.sleep(1.5) #wait for welcome message
@@ -83,7 +176,16 @@ class Plug:
     def __set_led_wifi(self,red,green,blue,blink):
         #now open up a connection to the plug
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.device,Plug.PLUG_PORT_NUMBER))
+        try:
+            s.connect((self.device,Plug.PLUG_PORT_NUMBER))
+        except socket.error:
+            print("error, can't connect to plug")
+            return -1
+        except Exception as e:
+            print("error: other exception")
+            print(e)
+            return -1
+
         s.sendall('set_led_%d_%d_%d_%d.'%(red,green,blue,blink))
         s.settimeout(3.0)
         try: 
@@ -91,6 +193,11 @@ class Plug:
         except socket.timeout:
                 print("error, no response from plug")
                 return -1
+        except Exception as e:
+            print("error: other exception")
+            print(e)
+            return -1
+
         if(resp=="OK"):
             return 0
         else:
@@ -152,6 +259,11 @@ class Plug:
         except socket.error:
             print("Plug refused connection")
             return None
+        except Exception as e:
+            print("error: other exception")
+            print(e)
+            return -1
+
         s.settimeout(7.0)
         s.sendall("send_data")
         try: 
@@ -223,8 +335,8 @@ class Plug:
         print(data['time'])
         #create the numpy array to put in nilmdb
         data_size = len(vrms)
-        ts_start = int(round(utc_ts*1e3))
-        ts = [ts_start+Plug.SECONDS_BTWN_SAMPLES*1e3*i for i in range(data_size)]
+        ts_start = int(round(utc_ts*1e6))
+        ts = [ts_start+Plug.SECONDS_BTWN_SAMPLES*1e6*i for i in range(data_size)]
         db_data = np.vstack([ts,vrms,irms,watts,pavg,pf,freq,kwh]).transpose()
         #make sure this new data doesn't overlap with existing data (due to drift in the plug clock)
         overlap = 0
@@ -238,3 +350,7 @@ class Plug:
             return None #total overlap, no new data here :(
 
         return db_data
+
+
+#shorthand for getting a plug connected over USB
+usb_plug = Plug("/dev/smart_plug",usb=True)
