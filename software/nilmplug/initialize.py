@@ -14,7 +14,6 @@ COL_MAGENTA = ESC_SEQ+"35;01m"
 COL_CYAN = ESC_SEQ+"36;01m"
 
 
-
 def run():
     sys.stdout.write("adding udev entry for nilm-plug devices ")
     udev_file = pkg_resources.resource_filename(
@@ -25,6 +24,7 @@ def run():
         run_as_root()        
     print(("["+COL_GREEN+"OK"+COL_RESET+"]"))
 
+    
 def run_as_root():
     print(("["+COL_RED+"ERROR"+COL_RESET+"]\n run as [sudo nilm initialize]"))
     exit(1)

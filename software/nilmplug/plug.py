@@ -6,48 +6,50 @@ import time
 import serial
 import datetime
 
+
 class Plug:
-    #structure of packet
-    NUM_SAMPLES    = 30
-    STATUS_SIZE    = 4
+    # structure of packet
+    NUM_SAMPLES = 30
+    STATUS_SIZE = 4
     TIMESTAMP_SIZE = 20
     TCP_PKT_SIZE = (7*NUM_SAMPLES*4)+STATUS_SIZE+TIMESTAMP_SIZE
     SECONDS_BTWN_SAMPLES = 2
     SECONDS_BTWN_SAMPLES = 2
     PLUG_PORT_NUMBER = 1336
 
-    def __init__(self,device,usb=False):
-        #[device] should be an IPv4 address for WiFi or
+    def __init__(self, device, usb=False):
+        # [device] should be an IPv4 address for WiFi or
         #         a device node if plug is connected by USB (eg /dev/ttyACM0)
         self.device = device
         self.usb = usb
 
     ######### Relay Management #############
-    def set_relay(self,value):
-        print("set relay [%s]"%value)
+    def set_relay(self, value):
+        print("set relay [%s]" % value)
         if(self.usb):
             return self.__set_relay_usb(value)
         else:
             return self.__set_relay_wifi(value)
 
-    def __set_relay_usb(self,value):
-        if(value!="on" and value!="off"):
+    def __set_relay_usb(self, value):
+        if(value != "on" and value != "off"):
             print("value must be [on|off]")
             return
         dev = serial.Serial(self.device)
-        time.sleep(1.5) #wait for welcome message
+        time.sleep(1.5)  # wait for welcome message
         dev.write("echo off\n")
         time.sleep(0.5)
         dev.flushInput()
         time.sleep(0.5)
-        dev.write("relay %s\n"%value) #LED solid green
+        dev.write("relay %s\n" % value)  # LED solid green
         time.sleep(0.5)
         dev.close()
-    def __set_relay_wifi(self,value):
-        #now open up a connection to the plug
+        
+    def __set_relay_wifi(self, value):
+        # now open up a connection to the plug
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            s.connect((self.device,Plug.PLUG_PORT_NUMBER))
+            s.connect((self.device, Plug.PLUG_PORT_NUMBER))
         except socket.error:
             print("error, can't connect to plug")
             return -1
@@ -55,9 +57,9 @@ class Plug:
             print("error: other exception")
             print(e)
             return -1
-        if(value=="on"):
+        if(value == "on"):
             s.sendall('relay_on')
-        elif(value=="off"):
+        elif(value == "off"):
             s.sendall('relay_off')
         s.settimeout(3.0)
         try: 
@@ -86,13 +88,13 @@ class Plug:
             print("error: invalid settings for on and off times")
             return
         dev = serial.Serial(self.device)
-        time.sleep(1.5) #wait for welcome message
+        time.sleep(1.5)  # wait for welcome message
         dev.write("echo off\n")
         time.sleep(0.5)
         dev.flushInput()
         time.sleep(0.5)
         if(run):
-            dev.write("calibrate start %d %d\n"%(on_time,off_time))
+            dev.write("calibrate start %d %d\n" % (on_time, off_time))
         else:
             dev.write("calibrate stop\n")
         time.sleep(0.5)

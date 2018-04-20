@@ -2,17 +2,6 @@
 
 from setuptools import setup, find_packages
 
-# We need a MANIFEST.in.  Generate it here rather than polluting the
-# repository with yet another setup-related file.
-with open("MANIFEST.in", "w") as m:
-    m.write("""
-# Root
-include README.txt
-include setup.py
-include versioneer.py
-include Makefile
-""")
-
 # Run setup
 setup(name='nilmplug',
       description='Smart plug to support NILM systems',

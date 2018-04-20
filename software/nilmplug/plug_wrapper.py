@@ -1,4 +1,11 @@
-#!/usr/bin/python
+#!/usr/bin/python3
+import socket
+import os
+import argparse
+from . import initialize
+import csv
+from .plug import Plug
+from . import terminal
 
 desc = """nilm-plug
 
@@ -17,8 +24,8 @@ desc = """nilm-plug
         nilm-plug --cli #/dev/NODE is optional when only one plug connected
         nilm-plug --cli /dev/ttyACM0 #specify /dev/NODE for multiple plugs
 
-    Data files created by this script are CSV formatted with the following columns
-           ts | vrms | irms | watts | pavg | pf | freq | kwh 
+    Data files created are CSV formatted with the following columns
+           ts | vrms | irms | watts | pavg | pf | freq | kwh
 
     ts   | timestamp (UNIX milliseconds)
     vrms | RMS Voltage
@@ -34,20 +41,15 @@ desc = """nilm-plug
 
 """
 
-import socket
-import os
-import argparse
-from . import initialize
-import csv
-from .plug import Plug
-from . import terminal
 
 FNULL = open(os.devnull,'w')
+
 
 def set_relay(device,value,usb):
     plg = Plug(device,usb)
     plg.set_relay(value)
 
+    
 def read_meter(device,dest_file,usb,erase=False):
     plg = Plug(device,usb)
     last_ts = 0
@@ -77,6 +79,8 @@ def read_meter(device,dest_file,usb,erase=False):
                 plg.erase_data()
                 print("\t erased data")
             print("All data retrieved, unplug smartee to reset")
+
+            
 def main():
         parser = argparse.ArgumentParser(
             formatter_class = argparse.RawDescriptionHelpFormatter,

@@ -1,3 +1,3 @@
 #--copy into /etc/udev/rules.d--
 #WEMO Smart plugs with custom control board
-SUBSYSTEMS=="usb", ATTRS{product}=="WEMO Control Board", MODE:="666", GROUP="dialout", SYMLINK+="smart_plug"
+SUBSYSTEMS=="usb", ATTRS{product}=="WEMO Control Board", MODE:="666", GROUP="dialout", SYMLINK+="smart_plug", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{MTP_NO_PROBE}="1"
