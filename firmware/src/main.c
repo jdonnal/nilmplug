@@ -110,9 +110,9 @@ int main(void) {
   //-----------------     
   //ready to go! enable interrupts
   cpu_irq_enable();
-  printf("entering monitor\n");
+  printf("entering monitor\r\n");
   monitor();
-  printf("uh oh... out of monitor\n");
+  printf("uh oh... out of monitor\r\n");
   while(1){
     //should never get here
   };
@@ -127,11 +127,11 @@ void io_init(void){
   //reset to ON
   /*
   if(gpbr_read(GPBR_RELAY_STATE)==1){
-    printf("relay starting on\n");
+    printf("relay starting on\r\n");
     gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_1);
   }
   else{
-    printf("relay starting off\n");
+    printf("relay starting off\r\n");
     gpio_configure_pin(RELAY_PIN, PIO_OUTPUT_0);
   }
   */

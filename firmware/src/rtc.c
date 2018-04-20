@@ -26,7 +26,7 @@ int i2c_rtc_init(void){
   opt.smbus = 0x0;
   opt.chip = 0x0;
   if((r=twi_master_init(RTC_BASE_TWI, &opt)) != TWI_SUCCESS){
-    printf("error setting up I2C for RTC: %d\n",(int)r);
+    printf("error setting up I2C for RTC: %d\r\n",(int)r);
     return -1;
   }
   return 0;
@@ -43,7 +43,7 @@ void rtc_get_time(Rtc *p_rtc, uint32_t *ul_hour, uint32_t *ul_minute, uint32_t *
   packet_rx.buffer = rx_data;
   packet_rx.length = 3;
   if((r=twi_master_read(RTC_BASE_TWI, &packet_rx)) != TWI_SUCCESS){
-    printf("error reading RTC: %d\n",(int)r);
+    printf("error reading RTC: %d\r\n",(int)r);
     return;
   }
   //convert from BCD to decimal
@@ -53,7 +53,7 @@ void rtc_get_time(Rtc *p_rtc, uint32_t *ul_hour, uint32_t *ul_minute, uint32_t *
   *ul_hour = hr;
   *ul_minute = mn;
   *ul_second = sc;
-  //  printf("%d:%d:%d\n",hr,mn,sc);
+  //  printf("%d:%d:%d\r\n",hr,mn,sc);
 }
 
 //returns timestamp as string YYYY-MM-DD HH:MM:SS
@@ -81,7 +81,7 @@ void rtc_get_date(Rtc *p_rtc, uint32_t *ul_year, uint32_t *ul_month, uint32_t *u
   packet_rx.buffer = rx_data;
   packet_rx.length = 4;
   if((r=twi_master_read(RTC_BASE_TWI, &packet_rx)) != TWI_SUCCESS){
-    printf("error in get_date: %d\n",(int)r);
+    printf("error in get_date: %d\r\n",(int)r);
     return;
   }
   //convert from BCD to decimal
@@ -93,7 +93,7 @@ void rtc_get_date(Rtc *p_rtc, uint32_t *ul_year, uint32_t *ul_month, uint32_t *u
   *ul_month= mo;
   *ul_day = dt;
   *ul_week = dw;
-  //printf("20%d/%d/%d (%d)\n",yr,mo,dt,dw);
+  //printf("20%d/%d/%d (%d)\r\n",yr,mo,dt,dw);
 }
 
 //set RTC with unix timestamp
@@ -118,7 +118,7 @@ int i2c_rtc_set_time(uint8_t sc, uint8_t mn, uint8_t hr, uint8_t dw,
   packet_tx.buffer = tx_data;
   packet_tx.length = 7;
   if((r=twi_master_write(RTC_BASE_TWI, &packet_tx)) != TWI_SUCCESS){
-    printf("error setting RTC: %d\n",(int)r);
+    printf("error setting RTC: %d\r\n",(int)r);
     return -1;
   }
   return 0;

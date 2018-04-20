@@ -24,8 +24,8 @@ uint8_t fs_init(void){
   do {
     status = sd_mmc_test_unit_ready(0);
     if (CTRL_FAIL == status) {
-      printf("Card install FAIL\n");
-      printf("Please unplug and re-plug the card.\n");
+      printf("Card install FAIL\r\n");
+      printf("Please unplug and re-plug the card.\r\n");
       while (CTRL_NO_PRESENT != sd_mmc_check(0)) {
       }
     }
@@ -215,7 +215,7 @@ void fs_erase_data(void){
   FRESULT fr;
   fr = f_open(&fil, DATA_FILE, FA_WRITE);
   if(fr){
-    printf("error erasing data: %d\n", (int)fr);
+    printf("error erasing data: %d\r\n", (int)fr);
     return;
   }
   f_lseek(&fil,0);
@@ -251,7 +251,7 @@ void fs_info(void){
 	       (fno.fdate >> 9) + 1980-2000, fno.fdate >> 5 & 15, fno.fdate & 31,
 	       fno.ftime >> 11, fno.ftime >> 5 & 63);
 	       
-      printf("%s \t %ld \t %s\n",fn,(fno.fsize),ts_buf);
+      printf("%s \t %ld \t %s\r\n",fn,(fno.fsize),ts_buf);
     }
   }
   core_free(ts_buf);

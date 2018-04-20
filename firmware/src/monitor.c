@@ -69,7 +69,7 @@ mon_help(int argc, char **argv)
 {
   int i;
   for (i = 0; i < NCOMMANDS; i++)
-    printf("%s - %s\n", commands[i].name, commands[i].desc);
+    printf("%s - %s\r\n", commands[i].name, commands[i].desc);
   return 0;
 }
 
@@ -79,7 +79,7 @@ mon_rtc(int argc, char **argv){
   char *time_buf;
   uint8_t yr, dt, mo, dw, hr, mn, sc;
   if(argc<2){
-    printf("wrong number of args to set time\n");
+    printf("wrong number of args to set time\r\n");
     return -1;
   }
   if(strcmp(argv[1],"get")==0){
@@ -87,12 +87,12 @@ mon_rtc(int argc, char **argv){
     if(time_buf==NULL)
       core_panic();
     rtc_get_time_str(time_buf,time_buf_size);
-    printf("Time: %s\n",time_buf);
+    printf("Time: %s\r\n",time_buf);
     membag_free(time_buf);
   }
   else if(strcmp(argv[1],"set")==0){
     if(argc!=9){
-      printf("please specify a time\n");
+      printf("please specify a time\r\n");
       return -1;
     }
     yr = atoi(argv[2]);
@@ -103,18 +103,18 @@ mon_rtc(int argc, char **argv){
     mn = atoi(argv[7]);
     sc = atoi(argv[8]);
     if(i2c_rtc_set_time(sc,mn,hr,dw,dt,mo,yr)!=0)
-      printf("error setting RTC\n");
+      printf("error setting RTC\r\n");
     else{
       time_buf = membag_alloc(time_buf_size);
       if(time_buf==NULL)
 	core_panic();
       rtc_get_time_str(time_buf,time_buf_size);
-      printf("Set time to: %s\n",time_buf);
+      printf("Set time to: %s\r\n",time_buf);
       membag_free(time_buf);
     }
   }
   else{
-    printf("bad arguments to rtc\n");
+    printf("bad arguments to rtc\r\n");
     return -1;
   }
   return 0;
@@ -124,29 +124,29 @@ mon_rtc(int argc, char **argv){
 int
 mon_wifi(int argc, char **argv){
   if(argc!=2){
-    printf("specify [on] or [off]\n");
+    printf("specify [on] or [off]\r\n");
     return -1;
   }
   if(strcmp(argv[1],"on")==0){
     b_wifi_enabled = true;
     if(wifi_init()!=0){
       b_wifi_enabled=false;
-      printf("error starting wifi\n");
+      printf("error starting wifi\r\n");
     }
     else{
       //good to go! turn light green
       rgb_led_set(LED_LT_GREEN,0);
-      printf("wifi on\n");
+      printf("wifi on\r\n");
     }
     return 0;
   }
   else if(strcmp(argv[1],"off")==0){
     b_wifi_enabled = false;
-    printf("wifi off\n");
+    printf("wifi off\r\n");
     rgb_led_set(LED_BLUE,0);
     return 0;
   }
-  printf("specify [on] or [off]\n");
+  printf("specify [on] or [off]\r\n");
   return -1;
 }
 
@@ -156,14 +156,14 @@ mon_debug(int argc, char **argv){
   if(argc==2){
     wemo_config.debug_level=atoi(argv[1]);
   }
-  printf("debug level: %d\n",wemo_config.debug_level);
+  printf("debug level: %d\r\n",wemo_config.debug_level);
   return 0;
 }
     
 //read the current firmware version
 int 
 mon_version(int argc, char **argv){
-  printf("\tFirmware [%s]\n\tDate: [%s %s]\n",VERSION_STR, __DATE__,__TIME__);
+  printf("\tFirmware [%s]\r\n\tDate: [%s %s]\r\n",VERSION_STR, __DATE__,__TIME__);
   return 0;
 }
 
@@ -173,7 +173,7 @@ mon_led(int argc, char **argv){
   uint32_t blink;
   uint8_t r,g,b;
   if(argc!=5){
-    printf("usage: [red,green,blue,blink (ms)]\n");
+    printf("usage: [red,green,blue,blink (ms)]\r\n");
     return 1;
   }
   r = atoi(argv[1]);
@@ -181,7 +181,7 @@ mon_led(int argc, char **argv){
   b = atoi(argv[3]);
   blink = atoi(argv[4]);
   if(blink !=0 && (blink<LED_MIN_BLINK_RATE || blink>LED_MAX_BLINK_RATE)){
-    printf("error, invalid blink rate please use [%d,%d]\n",
+    printf("error, invalid blink rate please use [%d,%d]\r\n",
 	   LED_MIN_BLINK_RATE,LED_MAX_BLINK_RATE);
     blink = 0;
   }
@@ -196,13 +196,13 @@ mon_relay(int argc, char **argv){
   state = gpbr_read(GPBR_RELAY_STATE);
   if(argc==1){ //print the relay state
     if(state)
-      printf("relay [on]\n");
+      printf("relay [on]\r\n");
     else
-      printf("relay [off]\n");
+      printf("relay [off]\r\n");
     return -1;
   }
   if(argc!=2){
-    printf("relay [on|off|toggle]\n");
+    printf("relay [on|off|toggle]\r\n");
     return -1;
   }
   if(strcmp(argv[1],"on")==0){
@@ -222,7 +222,7 @@ mon_relay(int argc, char **argv){
     gpbr_write(GPBR_RELAY_STATE,state);
   }
   else{
-    printf("bad argument to relay\n");
+    printf("bad argument to relay\r\n");
     return -1;
   }
   return 0;
@@ -231,7 +231,7 @@ mon_relay(int argc, char **argv){
 int 
 mon_echo(int argc, char **argv){
   if(argc!=2){
-    printf("wrong number of args to relay\n");
+    printf("wrong number of args to relay\r\n");
     return -1;
   }
   if(strcmp(argv[1],"on")==0)
@@ -239,7 +239,7 @@ mon_echo(int argc, char **argv){
   else if(strcmp(argv[1],"off")==0)
     wemo_config.echo = false;
   else{
-    printf("bad argument to echo\n");
+    printf("bad argument to echo\r\n");
     return -1;
   }
   return 0;
@@ -271,13 +271,13 @@ mon_config(int argc, char **argv){
     wemo_config.str_standalone, wemo_config.nilm_ip_addr};
 
   if(argc<2){
-    printf("wrong number of args to config\n");
+    printf("wrong number of args to config\r\n");
     return -1;
   }
   //--- request to get a config ----
   if(strcmp(argv[1],"get")==0){
     if(argc!=3){
-      printf("specify a config to read\n");
+      printf("specify a config to read\r\n");
       return -1;
     }
     //find the matching config
@@ -287,13 +287,13 @@ mon_config(int argc, char **argv){
 	b_tmp_echo = wemo_config.echo;
 	wemo_config.echo = true;
 	printf(gettable_config_vals[i]);
-	printf("\n");
+	printf("\r\n");
 	//reset the echo setting
 	wemo_config.echo = b_tmp_echo;
 	return 0;
       }
     } //couldn't find config
-    printf("Error, config [%s] is not available\n",argv[2]);
+    printf("Error, config [%s] is not available\r\n",argv[2]);
     return -1;
   }
   //--- request to set a config ----
@@ -310,7 +310,7 @@ mon_config(int argc, char **argv){
 	strcat(conf_buf," ");
       }
       if((strlen(argv[i])+strlen(conf_buf))>CONF_BUF_SIZE){
-	printf("requested value is too large to store\n");
+	printf("requested value is too large to store\r\n");
 	return -1;
       }
       strcat(conf_buf,argv[i]);
@@ -319,14 +319,14 @@ mon_config(int argc, char **argv){
     for(i=0;i<SETTABLE_CONFIG_SIZE;i++){
       if(strstr(argv[2],settable_configs[i])==argv[2]){
 	if(strlen(conf_buf)>MAX_CONFIG_LEN){
-	  printf("requested value is too large to store\n");
+	  printf("requested value is too large to store\r\n");
 	  return -1;
 	}
 	//clear out the existing config
 	memset(settable_config_vals[i],0x0,MAX_CONFIG_LEN);
 	//save the config to the config struct
 	memcpy(settable_config_vals[i],conf_buf,strlen(conf_buf));
-	printf("Set [%s] to [%s]\n",argv[2],settable_config_vals[i]);
+	printf("Set [%s] to [%s]\r\n",argv[2],settable_config_vals[i]);
 	//save the new config
 	fs_write_config();
       }
@@ -341,10 +341,10 @@ mon_config(int argc, char **argv){
 int 
 mon_meter(int argc, char **argv){
   if(!wemo_config.collect_data){
-    printf("Error, not collecting data\n");
+    printf("Error, not collecting data\r\n");
     return -1;
   }
-  printf("**this data may be up to a minute behind**\n");
+  printf("**this data may be up to a minute behind**\r\n");
 
   float vrms  = (float)(cur_pkt->vrms[0])/1000.0;
   float irms  = (float)(cur_pkt->irms[0])*7.77e-6;
@@ -354,14 +354,14 @@ mon_meter(int argc, char **argv){
   float pf    = (float)(cur_pkt->pf[0])/1000.0;
   float kwh   = (float)(cur_pkt->kwh[0])/1000.0;
 
-  printf("________________\n");
-  printf("voltage | %0.2f\n",vrms);
-  printf("current | %0.2f\n",irms);
-  printf("watts   | %0.2f\n",watts);
-  printf("avg pwr | %0.2f\n",pavg);
-  printf("freq    | %0.2f\n",freq);
-  printf("pf      | %0.2f\n",pf);
-  printf("kwh     | %0.2f\n",kwh);
+  printf("________________\r\n");
+  printf("voltage | %0.2f\r\n",vrms);
+  printf("current | %0.2f\r\n",irms);
+  printf("watts   | %0.2f\r\n",watts);
+  printf("avg pwr | %0.2f\r\n",pavg);
+  printf("freq    | %0.2f\r\n",freq);
+  printf("pf      | %0.2f\r\n",pf);
+  printf("kwh     | %0.2f\r\n",kwh);
 
   return 0;
 }
@@ -373,7 +373,7 @@ mon_log(int argc, char **argv){
   FRESULT fr; 
 
   if(argc!=2){
-    printf("specify [read] or [erase]\n");
+    printf("specify [read] or [erase]\r\n");
     return -1;
   }
   if(strcmp(argv[1],"read")==0){
@@ -382,7 +382,7 @@ mon_log(int argc, char **argv){
     //print the log out to STDOUT
     fr = f_open(&fil, LOG_FILE, FA_READ);
     if(fr){
-      printf("error reading log: %d\n",(int)fr);
+      printf("error reading log: %d\r\n",(int)fr);
       core_free(line_buf);
       return -1;
     }
@@ -396,18 +396,18 @@ mon_log(int argc, char **argv){
   else if(strcmp(argv[1],"erase")==0){
     fr = f_open(&fil, LOG_FILE, FA_WRITE);
     if(fr){
-      printf("error erasing log: %d\n", (int)fr);
+      printf("error erasing log: %d\r\n", (int)fr);
       return -1;
     }
     f_lseek(&fil,0);
     f_truncate(&fil);
     f_close(&fil);
     if(wemo_config.echo)
-      printf("erased log\n");
+      printf("erased log\r\n");
     return 0;
   }
   else{
-    printf("specify [read] or [erase]\n");
+    printf("specify [read] or [erase]\r\n");
     return -1;
   }
   //shouldn't get here
@@ -420,14 +420,14 @@ int mon_data(int argc, char **argv){
   FRESULT fr; 
   UINT r;
   if(argc!=2){
-    printf("specify [read] or [erase]\n");
+    printf("specify [read] or [erase]\r\n");
     return -1;
   }
   if(strcmp(argv[1],"read")==0){
     //print the data out to STDOUT
     fr = f_open(&fil, DATA_FILE, FA_READ);
     if(fr){
-      printf("error reading data: %d\n",(int)fr);
+      printf("error reading data: %d\r\n",(int)fr);
       return -1;
     }
     while(f_read(&fil, &pkt, sizeof(pkt), &r)==0){
@@ -452,11 +452,11 @@ int mon_data(int argc, char **argv){
   else if(strcmp(argv[1],"erase")==0){
     fs_erase_data();
     if(wemo_config.echo)
-      printf("erased data\n");
+      printf("erased data\r\n");
     return 0;
   }
   else{
-    printf("specify [read] or [erase]\n");
+    printf("specify [read] or [erase]\r\n");
     return -1;
   }
   //shouldn't get here
@@ -474,7 +474,7 @@ mon_restart(int argc, char **argv){
       rgb_led_set(LED_GRAY,0); //indicate bootloader mode set
     }
     else{
-      printf("[bootloader] to reboot with Atmel bootloader\n");
+      printf("[bootloader] to reboot with Atmel bootloader\r\n");
       return -1;
     }
   }
@@ -490,9 +490,9 @@ mon_memory(int argc, char **argv){
   size_t total, free;
   total = membag_get_total();
   free = membag_get_total_free();
-  printf("Allocated %d of %d bytes (%d%%)\n",total-free,total,((total-free)*100)/total);
-  printf("Largest free block: %d bytes\n",membag_get_largest_free_block_size());
-  printf("Smallest free block: %d bytes\n",membag_get_smallest_free_block_size());
+  printf("Allocated %d of %d bytes (%d%%)\r\n",total-free,total,((total-free)*100)/total);
+  printf("Largest free block: %d bytes\r\n",membag_get_largest_free_block_size());
+  printf("Smallest free block: %d bytes\r\n",membag_get_smallest_free_block_size());
   return 0;
 }
 
@@ -503,19 +503,19 @@ int mon_ls(int argc, char **argv){
 
 int mon_collect_data(int argc, char **argv){
   if(argc!=2){
-    printf("specify [true] or [false]\n");
+    printf("specify [true] or [false]\r\n");
     return -1;
   }
   if(strcmp(argv[1],"true")==0){
     if(!wemo_config.collect_data && wemo_config.echo)
-      printf("data collection started\n");
+      printf("data collection started\r\n");
     wemo_config.collect_data = true;
   } else if(strcmp(argv[1],"false")==0){
     if(wemo_config.collect_data && wemo_config.echo)
-      printf("data collection stopped\n");
+      printf("data collection stopped\r\n");
     wemo_config.collect_data = false;
   } else {
-    printf("error, specify [true] or [false]\n");
+    printf("error, specify [true] or [false]\r\n");
     return -1;
   }
   return 0;
@@ -527,7 +527,7 @@ int mon_calibrate(int argc, char **argv){
   //check if we should stop calibration mode
   if(argc==2){
     if(strcmp(argv[1],"stop")==0){
-      printf("stopping calibration mode\n");
+      printf("stopping calibration mode\r\n");
       wemo_config.calibrate = false;
       //disable the calibration PWM
       pwm_channel_disable_interrupt(PWM,CAL_PWM_CHANNEL,CAL_PWM_CHANNEL);
@@ -536,14 +536,14 @@ int mon_calibrate(int argc, char **argv){
       fs_write_config();
       return 0;
     } else {
-      printf("usage: specify [stop] or [start # #]\n");
+      printf("usage: specify [stop] or [start # #]\r\n");
     }
     return -1;
   }
   //make sure there are enough params to start 
   if(argc!=4 || (strcmp(argv[1],"start")!=0)){
-    printf("usage: specify [stop] or \n");
-    printf("\t [start on_time off_time] in ms\n");
+    printf("usage: specify [stop] or \r\n");
+    printf("\t [start on_time off_time] in ms\r\n");
     return -1;
   }
   //parse the on_time and off_time params
@@ -551,7 +551,7 @@ int mon_calibrate(int argc, char **argv){
   off_time = atoi(argv[3]);
   //make sure these times are valid
   if(on_time<MIN_CAL_TIME || off_time<MIN_CAL_TIME){
-    printf("times must be >= %d\n",MIN_CAL_TIME);
+    printf("times must be >= %d\r\n",MIN_CAL_TIME);
     return -1;
   }
   //stop data collection
@@ -579,7 +579,7 @@ void core_process_wifi_data(void){
 
   //match against the data
   if(strlen(wifi_rx_buf)>BUF_SIZE){
-    printf("can't process rx'd packet, too large\n");
+    printf("can't process rx'd packet, too large\r\n");
     core_log("can't process rx'd packet, too large");
     return;
   }
@@ -587,15 +587,15 @@ void core_process_wifi_data(void){
   buf = core_malloc(BUF_SIZE);
   r=sscanf(wifi_rx_buf,"\r\n+IPD,%d,%d:%s", &chan_num, &data_size, buf);
   if(r!=3){
-    printf("rx'd corrupt data, ignoring\n");
-    core_log("rx'd corrupt data, ignoring\n");
+    printf("rx'd corrupt data, ignoring\r\n");
+    core_log("rx'd corrupt data, ignoring\r\n");
     //free memory
     core_free(buf);
     return;
   }
 
   if(wemo_config.debug_level>DEBUG_INFO)
-    printf("Got [%d] bytes on channel [%d]\n",
+    printf("Got [%d] bytes on channel [%d]\r\n",
 	   data_size, chan_num);
   //discard responses from the NILM to power logging packets, but keep the response
   //if another core function has requested some data, this is done with the callback 
@@ -621,14 +621,14 @@ void core_process_wifi_data(void){
   //     RELAY ON
   if(strcmp(buf,"relay_on")==0){
     gpio_set_pin_high(RELAY_PIN);
-    printf("relay ON\n");
+    printf("relay ON\r\n");
     //return "OK" to indicate success
     wifi_send_txt(0,"OK");
   }
   //     RELAY OFF
   else if(strcmp(buf,"relay_off")==0){
     gpio_set_pin_low(RELAY_PIN);
-    printf("relay OFF\n");
+    printf("relay OFF\r\n");
     //return "OK" to indicate success
     wifi_send_txt(0,"OK");
   }
@@ -639,7 +639,7 @@ void core_process_wifi_data(void){
     } else {
       rgb_led_set(red,green,blue,blink);
       if(wemo_config.echo)
-	printf("set led: [%u, %u, %u, %u]\n",red,green,blue,blink);
+	printf("set led: [%u, %u, %u, %u]\r\n",red,green,blue,blink);
       wifi_send_txt(0,"OK");
     }
   }
@@ -659,12 +659,12 @@ void core_process_wifi_data(void){
 	memset(tx_pkt,0,sizeof(*tx_pkt));
 	tx_pkt->status=POWER_PKT_EMPTY;
 	if(wemo_config.debug_level>=DEBUG_INFO)
-	  printf("sent data\n");
+	  printf("sent data\r\n");
       }
     }
   }
   else{
-    printf("unknown command: %s\n",buf);
+    printf("unknown command: %s\r\n",buf);
     wifi_send_txt(chan_num,"error: unknown command");
     //free memory
     core_free(buf);
@@ -679,14 +679,14 @@ void core_process_wifi_data(void){
 
 void core_wifi_link(int ch){
   if(wemo_config.debug_level>=DEBUG_INFO)
-    printf("link on channel %d!\n",ch);
+    printf("link on channel %d!\r\n",ch);
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }
 
 void core_wifi_unlink(int ch){
   if(wemo_config.debug_level>=DEBUG_INFO)
-    printf("unlinked channel %d\n",ch);
+    printf("unlinked channel %d\r\n",ch);
   //clear the server buffer
   memset(wifi_rx_buf,0x0,WIFI_RX_BUF_SIZE);
 }
@@ -704,7 +704,7 @@ void core_transmit_power_packet_http(power_pkt *wemo_pkt){
   
   //make sure all the data is present
   if(wemo_pkt->status != POWER_PKT_READY){
-    printf("Error, packet is not ready to tx!\n");
+    printf("Error, packet is not ready to tx!\r\n");
     return;
   }
   //now we are filling up the POST request
@@ -780,21 +780,21 @@ void core_log_power_data(power_sample *sample){
   switch(cur_pkt->status){
   case POWER_PKT_EMPTY:
     if(wemo_sample_idx!=0){
-      printf("Error, empty packet but nonzero index\n");
+      printf("Error, empty packet but nonzero index\r\n");
       return;
     }
     //set the timestamp for the packet with the first one
     rtc_get_time_str(cur_pkt->timestamp,PKT_TIMESTAMP_BUF_SIZE);
     break;
   case POWER_PKT_TX_IN_PROG:
-    printf("Error, this packet is still being transmitted\n");
+    printf("Error, this packet is still being transmitted\r\n");
     return;
   case POWER_PKT_TX_FAIL:
-    printf("Error, this packet failed TX and isn't clean\n");
+    printf("Error, this packet failed TX and isn't clean\r\n");
     break;
   case POWER_PKT_READY:
     if(wemo_config.debug_level>=DEBUG_WARN)
-      printf("Transmit this packet first!\n");
+      printf("Transmit this packet first!\r\n");
     //see if the other buffer is ready, if so set this up for
     //transmission and start filling the other one
     if(tx_pkt->status==POWER_PKT_EMPTY){
@@ -836,7 +836,7 @@ void core_log_power_data(power_sample *sample){
 	wifi_init();
       }
       if(wemo_config.debug_level>=DEBUG_WARN)
-	printf("dropped packet before TX'd\n");
+	printf("dropped packet before TX'd\r\n");
     }
     //start filling the new buffer
     wemo_sample_idx = 0;
@@ -880,9 +880,9 @@ void core_get_nilm_ip_addr_cb(char* data){
   char *buf, *resp_data;
   int BUF_SIZE = MD_BUF_SIZE;
   buf = core_malloc(BUF_SIZE);
-  resp_data = strrchr(data,'\n');
-  if(sscanf(resp_data,"\n<<%d.%d.%d.%d>>",&a1,&a2,&a3,&a4)!=4){
-    printf("error, bad address from manager\n");
+  resp_data = strrchr(data,'\r\n');
+  if(sscanf(resp_data,"\r\n<<%d.%d.%d.%d>>",&a1,&a2,&a3,&a4)!=4){
+    printf("error, bad address from manager\r\n");
     core_free(buf);
     return;
   }
@@ -919,8 +919,8 @@ core_usb_enable(uint8_t port, bool b_enable){
     wemo_config.echo = true;
     b_usb_enabled = true;
     delay_ms(500);
-    printf("Wattsworth WEMO(R) Plug v1.0\n");
-    printf("  [help] for more information\n");
+    printf("Wattsworth WEMO(R) Plug v1.0\r\n");
+    printf("  [help] for more information\r\n");
     printf("> ");
     rgb_led_set(LED_BLUE,0);
   } 
@@ -1075,7 +1075,7 @@ ISR(PWM_Handler)
   pwm_channel &= (0xF);
   //make sure there are no unexpected PWM interrupts
   if((pwm_channel&(~0x7))!=0x0){
-    printf("unknown pwm source: %d\n",pwm_channel);
+    printf("unknown pwm source: %d\r\n",pwm_channel);
   }
 
   //check for systick  
@@ -1127,7 +1127,7 @@ core_read_usb(uint8_t port)
     if(cmd_buf_full)
       return; //still processing last command
     if (c < 0) {
-      printf("read error: %d\n", c);
+      printf("read error: %d\r\n", c);
       return;
     } else if ((c == '\b' || c == '\x7f') && cmd_buf_idx > 0) {
       if (wemo_config.echo)
@@ -1165,7 +1165,7 @@ runcmd(char *buf)
     
     // save and scan past next arg
     if (argc == MAXARGS-1) {
-      printf("Too many arguments (max 16)\n");
+      printf("Too many arguments (max 16)\r\n");
       return 0;
     }
     argv[argc++] = buf;
@@ -1182,7 +1182,7 @@ runcmd(char *buf)
       return commands[i].func(argc, argv);
     }
   }
-  printf("Unknown command '%s'\n", argv[0]);
+  printf("Unknown command '%s'\r\n", argv[0]);
   return 0;
 }
 

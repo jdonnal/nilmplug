@@ -8,7 +8,7 @@ static volatile bool b_cdc_enable = false;
 
 void usb_init(void){
 #ifdef USB_DBG
-  print("starting usb framework\n");
+  print("starting usb framework\r\n");
 #endif
   udc_start();
 }
@@ -16,24 +16,24 @@ void usb_init(void){
 //Callback hooks for the USB framework
 void usb_resume_action(void){
 #ifdef USB_DBG
-  print("resuming usb\n");
+  print("resuming usb\r\n");
 #endif
 }
 void usb_suspend_action(void){
 #ifdef USB_DBG
-  print("suspending usb\n");
+  print("suspending usb\r\n");
 #endif
 }
 void usb_sof_action(void){
   /*  if(b_cdc_enable){
-    print("sof\n");
+    print("sof\r\n");
     }*/
 }
 
 //Call back hooks for the CDC framework
 bool usb_cdc_enable(uint8_t port){
 #ifdef USB_DBG
-  print("cdc enabled\n");
+  print("cdc enabled\r\n");
 #endif
   b_cdc_enable = true;
   return true;
@@ -41,7 +41,7 @@ bool usb_cdc_enable(uint8_t port){
 
 bool usb_cdc_disable(uint8_t port){
 #ifdef USB_DBG
-  print("cdc disabled\n");
+  print("cdc disabled\r\n");
 #endif
   b_cdc_enable = false;
   return true;
@@ -50,20 +50,20 @@ bool usb_cdc_disable(uint8_t port){
 void usb_cdc_set_dtr(uint8_t port, bool b_enable){
 #ifdef USB_DBG
   if(b_enable)
-    print("cdc: host open\n");
+    print("cdc: host open\r\n");
   else
-    print("cdc: host closed\n");
+    print("cdc: host closed\r\n");
 #endif
 }
 void usb_rx_notify(uint8_t port){
 #ifdef USB_DBG
-  print("cdc rx notify\n");
+  print("cdc rx notify\r\n");
 #endif
   //  udi_cdc_putc('A');
 }
 void usb_cdc_config(uint8_t port, usb_cdc_line_coding_t * cfg){
 #ifdef USB_DBG
-  print("cdc config\n");
+  print("cdc config\r\n");
 #endif
 }
 

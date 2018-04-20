@@ -49,7 +49,7 @@ int wifi_init(void){
   }
   //if we are standalone, don't do anything
   if(wemo_config.standalone){
-    printf("warning: wifi_init called in standalone mode\n");
+    printf("warning: wifi_init called in standalone mode\r\n");
     return 0; 
   }
   //initialize the memory
@@ -89,7 +89,7 @@ int wifi_init(void){
   tc_enable_interrupt(TC0, 0, TC_IER_CPCS);
   //reset the module
   if(wifi_send_cmd("AT+RST","ready",buf,BUF_SIZE,1)==0){
-    printf("Error reseting ESP8266\n");
+    printf("Error reseting ESP8266\r\n");
     //free memory
     core_free(buf);
     core_free(tx_buf);
@@ -99,7 +99,7 @@ int wifi_init(void){
   }
   //set to mode STA
   if(wifi_send_cmd("AT+CWMODE=1","OK",buf,BUF_SIZE,1)==0){
-    printf("Error setting ESP8266 mode\n");
+    printf("Error setting ESP8266 mode\r\n");
     core_free(buf);
     core_free(tx_buf);
     return 0;
@@ -108,7 +108,7 @@ int wifi_init(void){
   snprintf(tx_buf,BUF_SIZE,"AT+CWJAP=\"%s\",\"%s\"",
 	   wemo_config.wifi_ssid,wemo_config.wifi_pwd);
   if(wifi_send_cmd(tx_buf,"OK",buf,BUF_SIZE,20)==0){
-    printf("no response to CWJAP\n");
+    printf("no response to CWJAP\r\n");
     //free memory
     core_free(buf);
     core_free(tx_buf);
@@ -117,7 +117,7 @@ int wifi_init(void){
   //make sure the response ends in OK
   uint8_t len = strlen(buf);
   if(len<2 || strcmp(&buf[len-2],"OK")!=0){
-    snprintf(tx_buf,BUF_SIZE,"failed to join network [%s]: [%s]\n",
+    snprintf(tx_buf,BUF_SIZE,"failed to join network [%s]: [%s]\r\n",
 	     wemo_config.wifi_ssid, buf);
     printf(tx_buf);
     core_log(tx_buf);
@@ -129,7 +129,7 @@ int wifi_init(void){
   //see if we have an IP address
   wifi_send_cmd("AT+CIFSR","OK",buf,BUF_SIZE,2);
   if(strstr(buf,"ERROR")==buf){
-    printf("error getting IP address\n");
+    printf("error getting IP address\r\n");
     //free the memory
     core_free(tx_buf);
     core_free(buf);
@@ -139,7 +139,7 @@ int wifi_init(void){
   //expect 4 octets but *not* 0.0.0.0
   int a1,a2,a3,a4;
   if(!(sscanf(buf,"+CIFSR:STAIP,\"%d.%d.%d.%d\"",&a1,&a2,&a3,&a4)==4 && a1!=0)){
-    printf("error, bad address: %s\n",buf);
+    printf("error, bad address: %s\r\n",buf);
     //free the memory
     core_free(tx_buf);
     core_free(buf);
@@ -167,7 +167,7 @@ int wifi_init(void){
   //log the event
   snprintf(buf,BUF_SIZE,"Joined [%s] with IP [%s]",
 	   wemo_config.wifi_ssid,wemo_config.ip_addr);
-  printf("\n%s\n",buf);
+  printf("\r\n%s\r\n",buf);
   core_log(buf);
   //free the memory
   core_free(tx_buf);
@@ -224,7 +224,7 @@ int wifi_set_baud(void){
   //reconfigure UART for 9600
   usart_options.baudrate = WIFI_UART_BAUDRATE;
   usart_serial_init(WIFI_UART,&usart_options);
-  printf("reset baudrate\n");
+  printf("reset baudrate\r\n");
 }
 
 int wifi_transmit(char *url, int port, char *data){
@@ -245,7 +245,7 @@ int wifi_transmit(char *url, int port, char *data){
   wifi_send_cmd(cmd,"4,CONNECT",buf,100,5);
   //check if we are able to connect to the NILM
   if(strstr(buf,"ERROR\r\nUnlink")==buf){
-    printf("can't connect to NILM\n");
+    printf("can't connect to NILM\r\n");
     core_free(cmd);
     core_free(buf);
     return TX_BAD_DEST_IP;
@@ -258,14 +258,14 @@ int wifi_transmit(char *url, int port, char *data){
   }
   //check for successful link
   if(strstr(buf,success_str)!=buf){
-    printf("error, setting up link\n");
+    printf("error, setting up link\r\n");
     core_free(cmd);
     core_free(buf);
     return TX_ERROR;
   }
   //send the data
   if((r=wifi_send_txt(4,data))!=0){
-    printf("error transmitting data: %d\n",data_tx_status);
+    printf("error transmitting data: %d\r\n",data_tx_status);
     core_free(cmd);
     core_free(buf);
     return r;
@@ -342,14 +342,14 @@ int wifi_send_data(int ch, const uint8_t* data, int size){
   }
   //check if this is a timeout error
   if(strlen((char*)resp_buf)==0){
-    printf("timeout error\n");
+    printf("timeout error\r\n");
     core_log("timeout error");
     data_tx_status = TX_TIMEOUT;
   }
   //an error occured, see if it is due to a module reset
   else if(strcmp((char*)resp_buf,"\r\nready\r\n")==0){
     //module reset itself!!! 
-    printf("detected module reset\n");
+    printf("detected module reset\r\n");
     core_log("module reset");
     data_tx_status = TX_ERR_MODULE_RESET;
   } else {
@@ -372,7 +372,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete,
   memset(resp_buf,0x0,RESP_BUF_SIZE);
   //setup the rx_complete buffer so we know when the command is finished
   if(strlen(resp_complete)>RESP_COMPLETE_BUF_SIZE-3){
-    printf("resp_complete, too long exiting\n");
+    printf("resp_complete, too long exiting\r\n");
     return -1;
   }
   strcpy(resp_complete_buf,resp_complete);
@@ -404,7 +404,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete,
   resp_buf[resp_buf_idx]=0x0;
   //remove any ECHO
   if(strstr((char*)resp_buf,cmd)!=(char*)resp_buf){
-    printf("bad echo: %s\n",resp_buf);
+    printf("bad echo: %s\r\n",resp_buf);
     return 0;
   } 
   rx_start = strlen(cmd);
@@ -417,7 +417,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete,
     rx_end--;
   //make sure we have a response
   if(rx_end<=rx_start){
-    printf("no response by timeout\n");
+    printf("no response by timeout\r\n");
     return 0;
   }
   //copy the data to the response buffer
@@ -425,7 +425,7 @@ int wifi_send_cmd(const char* cmd, const char* resp_complete,
     memcpy(resp,&resp_buf[rx_start],maxlen-1);
     resp[maxlen-1]=0x0;
     printf((char*)resp_buf);
-    printf("truncated output!\n");
+    printf("truncated output!\r\n");
   } else{
     memcpy(resp,&resp_buf[rx_start],rx_end-rx_start+1);
     //null terminate the response buffer
@@ -463,7 +463,7 @@ ISR(UART0_Handler)
   //new data from the web (unsollicted response)
   if(rx_wait && data_tx_status!=TX_PENDING){
     if(resp_buf_idx>=RESP_BUF_SIZE){
-      printf("error!\n");
+      printf("error!\r\n");
       return; //ERROR!!!!!
     }
     resp_buf[resp_buf_idx++]=(char)tmp;
@@ -497,11 +497,11 @@ ISR(UART0_Handler)
     //process into wifi_rx_buf and pass off to the the core 
     //when the reception is complete
     if(wifi_rx_buf_full){
-      printf("error, wifi_rx_buf must be processed by main loop!\n");
+      printf("error, wifi_rx_buf must be processed by main loop!\r\n");
       return; //ERROR!!!
     }
     if(wifi_rx_buf_idx>=WIFI_RX_BUF_SIZE){
-      printf("too much data, wifi_rx_buf full!\n");
+      printf("too much data, wifi_rx_buf full!\r\n");
       //empty the buffer
       wifi_rx_buf_idx = 0;
       return; //ERROR!!!!
@@ -547,7 +547,7 @@ ISR(UART0_Handler)
       if(wifi_rx_buf_idx>20){
 	if(strcmp(&wifi_rx_buf[wifi_rx_buf_idx-2],"\r\n")==0){
 	  wifi_rx_buf_idx = 0; 
-	  printf("flushed wifi_rx_buf, out of sync\n");
+	  printf("flushed wifi_rx_buf, out of sync\r\n");
 	}
       }
       core_free(action_buf);
