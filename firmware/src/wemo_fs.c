@@ -181,7 +181,7 @@ void fs_log(const char* content){
   msg_buf = core_malloc(buf_size);
   ts_buf = core_malloc(buf_size);
   rtc_get_time_str(ts_buf,buf_size);
-  snprintf(msg_buf,buf_size,"[%s]: %s\n",ts_buf,content);
+  snprintf(msg_buf,buf_size,"[%s]: %s\r\n",ts_buf,content);
   f_write(&log_file,msg_buf,strlen(msg_buf),&len);
   //close the log file
   f_close(&log_file);
@@ -239,7 +239,7 @@ void fs_info(void){
   fno.lfsize = sizeof lfn;  
   
   res = f_opendir(&dir, "/");                       /* Open the directory */
-  printf("FILE \t\t SIZE (KB) \t DATE\n");
+  printf("FILE \t\t SIZE (KB) \t DATE\r\n");
   if (res == FR_OK) {
     for (;;) {
       res = f_readdir(&dir, &fno);                   /* Read a directory item */
