@@ -6,8 +6,8 @@ mon swdp_scan
 attach 1
 file bin/flash.elf
 load bin/flash.elf
-#layout src
-
+layout src
+run
 #b monitor.c:159
 
 

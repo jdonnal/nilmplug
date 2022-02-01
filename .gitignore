@@ -7,9 +7,11 @@ asf
 firmware/bin/*
 firmware/asf*
 *#
+software/venv
 software/MANIFEST.in
 software/*.egg-info
 software/MANIFEST
 software/build
 software/dist
 software/nilmplug/*.bak
+.idea/

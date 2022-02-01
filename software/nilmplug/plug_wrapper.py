@@ -2,10 +2,9 @@
 import socket
 import os
 import argparse
-from . import initialize
+from nilmplug.scripts import initialize, terminal
 import csv
-from .plug import Plug
-from . import terminal
+from nilmplug.models.plug import Plug
 
 desc = """nilm-plug
 

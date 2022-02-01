@@ -21,9 +21,9 @@ all: bin/flash.bin bin/flash.elf
 clean:
 	-rm -rf obj bin
 gdb: bin/flash.elf
-	@arm-none-eabi-gdb
+	@gdb-multiarch
 flash: bin/flash.elf
-	@arm-none-eabi-gdb -x flash.gdb
+	@gdb-multiarch -x flash.gdb
 bin/%.bin: bin/%.elf
 	arm-none-eabi-objcopy -O binary $< $@
 bin/%.hex: bin/%.elf

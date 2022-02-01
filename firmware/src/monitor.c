@@ -576,6 +576,7 @@ void core_process_wifi_data(void){
   char *buf;
   int chan_num, data_size, r;
   unsigned int red,green,blue, blink;
+  unsigned int yr,mo,dt,dw,hr,mn,sc;
 
   //match against the data
   if(strlen(wifi_rx_buf)>BUF_SIZE){
@@ -641,6 +642,21 @@ void core_process_wifi_data(void){
       if(wemo_config.echo)
 	printf("set led: [%u, %u, %u, %u]\r\n",red,green,blue,blink);
       wifi_send_txt(0,"OK");
+    }
+  }
+  //     RTC SET
+  else if(strstr(buf,"set_rtc")==buf){
+     if(sscanf(buf,"set_rtc_%u_%u_%u_%u_%u_%u_%u.",&yr,&mo,&dt,&dw,&hr,&mn,&sc)!=7){
+      core_log("corrupt set_rtc request");
+    } else {
+      if(i2c_rtc_set_time(sc,mn,hr,dw,dt,mo,yr)!=0){
+        core_log("error setting rtc");
+        wifi_send_txt(0,"ERROR");
+      } else{
+        if(wemo_config.echo)
+          printf("set rtc: [%u, %u, %u, %u, %u, %u, %u]\r\n",yr,mo,dt,dw,hr,mn,sc);
+        wifi_send_txt(0,"OK");
+      }
     }
   }
   //     SEND DATA

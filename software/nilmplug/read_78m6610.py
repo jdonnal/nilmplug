@@ -42,7 +42,7 @@ def read_data(wemo):
     #now we are aligned,
     #read in a chunk of data
     raw = wemo.read(30*NUM_LINES)
-    data = np.fromstring(raw,'>u1')
+    data = np.frombuffer(raw,'>u1')
     hdr = data[0]
     length = data[1]
 
@@ -71,7 +71,7 @@ def read_data(wemo):
             v1 = vals[3*i]; v2 = vals[1+3*i]; v3 = vals[2+3*i]
             val = v3<<16 | v2<<8 | v1
             if((v3&0x80)==0x80):
-                val = np.fromstring(0xFF<<24 | v3<<16 | v2<<8 | v1,'i4')
+                val = np.frombuffer(0xFF<<24 | v3<<16 | v2<<8 | v1,'i4')
                 val = val[0]
             regs.append(val)
         #just print the first reg
