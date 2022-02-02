@@ -254,10 +254,13 @@ class Plug:
             writer.write("send_data".encode())
             await writer.drain()
             resp = await reader.read(Plug.TCP_PKT_SIZE)
-            if resp == "error: no data".encode():
-                return None
             writer.close()
             await writer.wait_closed()
+            if resp == "error: no data".encode():
+                return None
+            if len(resp) == 0:
+                return None
+
             return self.__parse_data(resp, last_ts)
         except socket.timeout:
             print("error, no response from plug")
@@ -287,7 +290,6 @@ class Plug:
             dev.close()
 
     def __parse_data(self, resp, last_ts):
-
         NUM_SAMPLES = Plug.NUM_SAMPLES
         # now convert the response into a data object
         data = {}
@@ -311,7 +313,7 @@ class Plug:
         try:
             utc_ts = timegm(time.strptime(data['time'], "%Y-%m-%d %H:%M:%S"))
         except ValueError:
-            print("corrupt date stamp")
+            print("corrupt date stamp:", resp)
             return None
         # convert the data to proper units
         vrms = [float(x) / 1000.0 for x in data['vrms']]

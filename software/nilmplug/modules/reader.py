@@ -1,13 +1,13 @@
 import asyncio
-import aiohttp
-from aiohttp import web
-import aiohttp_jinja2
-import jinja2
 import os
 import random
+
+import joule.api
 import numpy as np
 
-from joule.client.filter_module import FilterModule
+from joule.client.reader_module import ReaderModule
+from joule.errors import ApiError
+from nilmplug.models.plug import Plug
 
 CSS_DIR = os.path.join(os.path.dirname(__file__), 'assets', 'css')
 JS_DIR = os.path.join(os.path.dirname(__file__), 'assets', 'js')
@@ -18,123 +18,36 @@ TODO
 """
 
 
-class Visualizer(FilterModule):  # pragma: no cover
+class PlugReader(ReaderModule):  # pragma: no cover
 
-    async def setup(self, parsed_args, app, inputs, outputs):
-        loader = jinja2.FileSystemLoader(TEMPLATES_DIR)
-        aiohttp_jinja2.setup(app, loader=loader)
-        app["title"] = parsed_args.title
-
-        self.elements = []
-        dom_id = 0  # DOM id for javascript manipulation
-        for pipe in inputs.values():
-            for element in pipe.stream.elements:
-                self.elements.append({
-                    'stream': pipe.stream.name,
-                    'element': element.name,
-                    'value': '&mdash;',
-                    'min': '&mdash;',
-                    'max': '&mdash;',
-                    'id': dom_id
-                })
-                dom_id += 1
-        if len(self.elements) == 0:
-            self.mock_data = True
-            self.elements = self._create_mock_elements(4)
-
-        else:
-            self.mock_data = False
+    async def setup(self, parsed_args, app, output):
+        self.plug = Plug(parsed_args.plug_ip)
+        try:
+            parts = parsed_args.event_stream.split('/')
+            name = parts[-1]
+            folder = '/'.join(parts[:-1])
+            self.event_stream = joule.api.EventStream(name)
+            self.event_stream = await self.node.event_stream_create(self.event_stream, folder)
+        except ApiError:
+            self.event_stream = await self.node.event_stream_get(parsed_args.event_stream)
 
     def custom_args(self, parser):
-        parser.add_argument("--title", default="Data Visualizer", help="page title")
-        parser.description = ARGS_DESC
+        parser.add_argument("--plug-serial", help="plug serial number")
+        parser.add_argument("--plug-ip", help="plug ip address")
+        parser.add_argument("--event-stream", help="Joule event stream for on/off events")
 
-    async def run(self, parsed_args, inputs, outputs):
-        if self.mock_data:
-            while True:
-                self._update_mock_data()
-                await asyncio.sleep(1)
+    async def run(self, parsed_args, output):
+        last_ts = joule.utilities.time_now()
+        await self.plug.set_rtc()
         while not self.stop_requested:
-            offset = 0
-            for pipe in inputs.values():
-                data = await pipe.read()
-                pipe.consume(len(data))
-                if len(data) == 0:
-                    continue
-                for i in range(len(pipe.stream.elements)):
-                    data_mean = float(np.mean(data['data'][i]))
-                    data_min = float(np.min(data['data'][i]))
-                    data_max = float(np.max(data['data'][i]))
-                    self.elements[i + offset]['value'] = data_mean
-                    # compute the new min value
-                    if type(self.elements[i + offset]['min']) is str:
-                        self.elements[i + offset]['min'] = data_min
-                    else:
-                        global_min = self.elements[i + offset]['min']
-                        self.elements[i + offset]['min'] = min((data_min, global_min))
-                    # compute the new max value
-                    if type(self.elements[i + offset]['max']) is str:
-                        self.elements[i + offset]['max'] = data_max
-                    else:
-                        global_max = self.elements[i + offset]['max']
-                        self.elements[i + offset]['max'] = max((data_max, global_max))
-                offset += len(pipe.stream.elements)
-
-            await asyncio.sleep(0.5)
-
-    def routes(self):
-        return [
-            web.get('/', self.index),
-            web.get('/data.json', self.data),
-            web.post('/reset.json', self.reset),
-            web.static('/assets/css', CSS_DIR),
-            web.static('/assets/js', JS_DIR),
-        ]
-
-    @aiohttp_jinja2.template('index.jinja2')
-    async def index(self, request):
-        return {'title': request.app['title'], 'elements': self.elements}
-
-    async def data(self, request):
-        return web.json_response(data=self.elements)
-
-    async def reset(self, request):
-
-        # clear the max and min values
-        for element in self.elements:
-            element['min'] = "&mdash;"
-            element['max'] = "&mdash;"
-
-        return web.json_response(data=self.elements)
-
-    def _update_mock_data(self):
-        for element in self.elements:
-            element['value'] = random.randint(1, 101)
-            element['min'] = element['value'] - random.randint(1, 101)
-            element['max'] = element['value'] + random.randint(1, 101)
-
-    def _create_mock_elements(self, num_elements: int):
-        elements = []
-        for x in range(num_elements):
-            elements.append({
-                'stream': 'test',
-                'element': 'elem%d' % x,
-                'value': '--',
-                'min': '--',
-                'max': '--',
-                'id': x
-            })
-
-        return elements
-
-
-def create_app():
-    r = Visualizer()
-    return r.create_dev_app()
-
+            data = await self.plug.get_data(last_ts)
+            if data is not None:
+                await output.write(data)
+                last_ts = data[-1][0]
+            await asyncio.sleep(20)
 
 def main():  # pragma: no cover
-    r = Visualizer()
+    r = PlugReader()
     r.start()
 
 
