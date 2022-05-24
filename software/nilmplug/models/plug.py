@@ -258,6 +258,7 @@ class Plug:
             await writer.wait_closed()
             if resp == "error: no data".encode():
                 return None
+            print("read %d bytes of data"%len(resp))
             if len(resp) == 0:
                 return None
 

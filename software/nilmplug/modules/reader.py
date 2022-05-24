@@ -50,7 +50,7 @@ class PlugReader(ReaderModule):  # pragma: no cover
             if data is not None:
                 for row in data:
                     ts = row[0]
-                    avg_power = row[4]
+                    avg_power = row[3]
                     kwh = row[7]
                     if avg_power > 5:  # load is on
                         if event is None:  # load just turned on
